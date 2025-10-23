@@ -1,0 +1,161 @@
+{% extends 'base.html' %}
+{% load custom_filters %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% load static %}{% static 'css/batch_inventory_report.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="batch-report-container">
+    <div class="batch-report-header">
+        <h1 class="batch-report-title">{{ title }}</h1>
+        <div class="batch-report-actions">
+            <a href="{% url 'dateexpiry_inventory_report' %}" class="batch-report-btn batch-report-btn-primary">
+                <i class="fas fa-calendar-alt fa-sm"></i> Date-wise Inventory
+            </a>
+            <a href="javascript:window.print()" class="batch-report-btn batch-report-btn-secondary">
+                <i class="fas fa-download fa-sm"></i> Print/Export
+            </a>
+        </div>
+    </div>
+
+    <div class="batch-report-card">
+        <div class="batch-report-card-header">
+            <h6 class="batch-report-card-title">Batch-wise Inventory Report</h6>
+            <small class="batch-report-card-subtitle">Shows all products including those with zero stock</small>
+            <div class="no-print">
+                <form action="{% url 'batch_inventory_report' %}" method="GET" class="batch-search-form">
+                    <div class="batch-search-group">
+                        <input type="text" name="search" value="{{ search_query }}" placeholder="Search products..." aria-label="Search" class="batch-search-input">
+                    </div>
+                    <div class="batch-search-actions">
+                        <button type="submit" class="batch-search-btn batch-search-btn-primary">
+                            <i class="fas fa-search fa-sm"></i> Search
+                        </button>
+                        <a href="{% url 'batch_inventory_report' %}" class="batch-reset-link">Reset</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <div class="batch-report-card-body">
+            {% if inventory_data %}
+            <div class="batch-info-alert" role="alert">
+                <span><i class="fas fa-info-circle me-2"></i>
+                This report shows ALL products from your product list, including those with zero stock (highlighted in yellow).</span>
+                <button type="button" class="batch-alert-close" data-bs-dismiss="alert" aria-label="Close">&times;</button>
+            </div>
+            <div class="batch-table-container">
+                <table class="batch-inventory-table">
+                    <thead class="batch-table-header">
+                        <tr>
+                            <th>Product Name</th>
+                            <th>Company</th>
+                            <th>Packing</th>
+                            <th>Batch No</th>
+                            <th>Expiry</th>
+                            <th>Stock Qty</th>
+                            <th>MRP</th>
+                            <th>Stock Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in inventory_data %}
+                        <tr {% if item.stock <= 0 %}class="batch-zero-stock-row"{% endif %}>
+                            <td>
+                                <a href="{% url 'product_detail' item.product_id %}" class="batch-product-link">
+                                    {{ item.product_name }}
+                                </a>
+                            </td>
+                            <td>{{ item.product_company }}</td>
+                            <td>{{ item.product_packing }}</td>
+                            <td>{{ item.batch_no }}</td>
+                            <td>{{ item.expiry|expiry_mmyyyy }}</td>
+                            <td>
+                                {% if item.stock <= 0 %}
+                                    <span class="batch-zero-stock-badge">{{ item.stock }}</span>
+                                {% else %}
+                                    {{ item.stock }}
+                                {% endif %}
+                            </td>
+                            <td>₹{{ item.mrp|floatformat:2 }}</td>
+                            <td>₹{{ item.value|floatformat:2 }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="batch-table-footer">
+                        <tr>
+                            <td colspan="7" class="batch-total-label">Page Total Value:</td>
+                            <td>₹{{ page_total_value|floatformat:2 }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            
+            <!-- Pagination -->
+            {% if batches_page.has_other_pages %}
+            <nav aria-label="Batch inventory pagination" class="no-print batch-pagination-container">
+                <div class="batch-pagination-info">
+                    <div>
+                        <small class="batch-pagination-text">
+                            Showing {{ batches_page.start_index }}-{{ batches_page.end_index }} of {{ batches_page.paginator.count }} batches
+                        </small>
+                    </div>
+                    <ul class="batch-pagination-list">
+                        {% if batches_page.has_previous %}
+                            <li class="batch-pagination-item">
+                                <a href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}" class="batch-pagination-link">&laquo;&laquo;</a>
+                            </li>
+                            <li class="batch-pagination-item">
+                                <a href="?page={{ batches_page.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}" class="batch-pagination-link">&laquo;</a>
+                            </li>
+                        {% endif %}
+                        
+                        {% for num in batches_page.paginator.page_range %}
+                            {% if batches_page.number == num %}
+                                <li class="batch-pagination-item">
+                                    <span class="batch-pagination-active">{{ num }}</span>
+                                </li>
+                            {% elif num > batches_page.number|add:'-3' and num < batches_page.number|add:'3' %}
+                                <li class="batch-pagination-item">
+                                    <a href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}" class="batch-pagination-link">{{ num }}</a>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if batches_page.has_next %}
+                            <li class="batch-pagination-item">
+                                <a href="?page={{ batches_page.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}" class="batch-pagination-link">&raquo;</a>
+                            </li>
+                            <li class="batch-pagination-item">
+                                <a href="?page={{ batches_page.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}" class="batch-pagination-link">&raquo;&raquo;</a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </nav>
+            {% endif %}
+            
+            {% else %}
+            <div class="batch-empty-state">
+                <i class="fas fa-info-circle me-2"></i>
+                {% if search_query %}
+                No inventory data found with the current search.
+                <a href="{% url 'batch_inventory_report' %}" class="batch-empty-link">Clear search</a> to see all inventory.
+                {% else %}
+                No inventory data found. Add some purchases to see inventory.
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+
+
+
+
+

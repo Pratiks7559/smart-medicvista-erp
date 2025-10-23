@@ -1,0 +1,377 @@
+{% extends 'base.html' %}
+{% load custom_filters %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/financial_report.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="financial-report-container">
+    <div class="financial-report-header">
+        <h1 class="financial-report-title">{{ title }}</h1>
+        <div class="financial-export-buttons no-print">
+            <a href="{% url 'export_financial_pdf' %}" class="financial-export-btn financial-export-pdf">
+                <i class="fas fa-file-pdf"></i> PDF
+            </a>
+            <a href="{% url 'export_financial_excel' %}" class="financial-export-btn financial-export-excel">
+                <i class="fas fa-file-csv"></i> CSV/Excel
+            </a>
+            <button onclick="window.print()" class="financial-export-btn financial-export-print">
+                <i class="fas fa-print"></i> Print (Ctrl+P)
+            </button>
+        </div>
+    </div>
+
+    <!-- Date Range Selector -->
+    <div class="financial-date-range-card">
+        <div class="financial-date-range-header">
+            <h6 class="financial-date-range-title">Select Date Range</h6>
+        </div>
+        <div class="financial-date-range-body">
+            <form method="get" class="financial-date-range-form">
+                <div class="financial-date-inputs-row">
+                    <div class="col">
+                        <div class="financial-form-group">
+                            <label for="start_date" class="financial-date-label">Start Date</label>
+                            <input type="date" id="start_date" name="start_date" value="{{ start_date|date:'Y-m-d' }}" class="financial-date-input">
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="financial-form-group">
+                            <label for="end_date" class="financial-date-label">End Date</label>
+                            <input type="date" id="end_date" name="end_date" value="{{ end_date|date:'Y-m-d' }}" class="financial-date-input">
+                        </div>
+                    </div>
+                </div>
+                <button type="submit" class="financial-apply-btn">Apply</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Financial Summary -->
+    <div class="financial-summary-row">
+        <div class="financial-summary-col">
+            <div class="financial-summary-card">
+                <div class="financial-summary-card-body">
+                    <div class="financial-summary-content">
+                        <div class="col mr-2">
+                            <div class="financial-summary-label">
+                                Gross Sales</div>
+                            <div class="financial-summary-value">₹ {{ sales|floatformat:2 }}</div>
+                        </div>
+                        <div class="financial-summary-icon">
+                            <i class="fas fa-cart-plus fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="financial-summary-col">
+            <div class="financial-summary-card">
+                <div class="financial-summary-card-body">
+                    <div class="financial-summary-content">
+                        <div class="col mr-2">
+                            <div class="financial-summary-label">
+                                Gross Purchases</div>
+                            <div class="financial-summary-value">₹ {{ purchases|floatformat:2 }}</div>
+                        </div>
+                        <div class="financial-summary-icon">
+                            <i class="fas fa-shopping-bag fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="financial-returns-col">
+            <div class="financial-sales-returns-card">
+                <div class="financial-sales-returns-body">
+                    <div class="financial-sales-returns-content">
+                        <div class="financial-sales-returns-text">
+                            <div class="financial-sales-returns-label">
+                                Sales Returns</div>
+                            <div class="financial-sales-returns-value">₹ {{ sales_returns|floatformat:2 }}</div>
+                        </div>
+                        <div class="financial-sales-returns-icon">
+                            <i class="fas fa-undo fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="financial-returns-col">
+            <div class="financial-purchase-returns-card">
+                <div class="financial-purchase-returns-body">
+                    <div class="financial-purchase-returns-content">
+                        <div class="financial-purchase-returns-text">
+                            <div class="financial-purchase-returns-label">
+                                Purchase Returns</div>
+                            <div class="financial-purchase-returns-value">₹ {{ purchase_returns|floatformat:2 }}</div>
+                        </div>
+                        <div class="financial-purchase-returns-icon">
+                            <i class="fas fa-undo-alt fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Net Figures -->
+    <div class="financial-net-figures-row">
+        <div class="financial-net-sales-col">
+            <div class="financial-net-sales-card">
+                <div class="financial-net-sales-body">
+                    <div class="financial-net-sales-content">
+                        <div class="financial-net-sales-text">
+                            <div class="financial-net-sales-label">
+                                Net Sales (After Returns)</div>
+                            <div class="financial-net-sales-value">₹ {{ net_sales|floatformat:2 }}</div>
+                        </div>
+                        <div class="financial-net-sales-icon">
+                            <i class="fas fa-chart-line fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="financial-net-purchases-col">
+            <div class="financial-net-purchases-card">
+                <div class="financial-net-purchases-body">
+                    <div class="financial-net-purchases-content">
+                        <div class="financial-net-purchases-text">
+                            <div class="financial-net-purchases-label">
+                                Net Purchases (After Returns)</div>
+                            <div class="financial-net-purchases-value">₹ {{ net_purchases|floatformat:2 }}</div>
+                        </div>
+                        <div class="financial-net-purchases-icon">
+                            <i class="fas fa-chart-bar fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gross Profit -->
+    <div class="financial-gross-profit-row">
+        <div class="financial-gross-profit-col">
+            <div class="financial-gross-profit-card">
+                <div class="financial-gross-profit-body">
+                    <div class="financial-gross-profit-content">
+                        <div class="financial-gross-profit-text">
+                            <div class="financial-gross-profit-label">
+                                Gross Profit</div>
+                            <div class="financial-gross-profit-value {% if gross_profit > 0 %}financial-profit{% else %}financial-loss{% endif %}">
+                                ₹ {{ gross_profit|floatformat:2 }}
+                                {% if gross_profit > 0 %}
+                                <small class="financial-profit-indicator">(Profit)</small>
+                                {% else %}
+                                <small class="financial-loss-indicator">(Loss)</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="financial-gross-profit-icon">
+                            <i class="fas {% if gross_profit > 0 %}fa-smile{% else %}fa-frown{% endif %} fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Monthly Sales Trend Chart -->
+    <div class="financial-chart-card">
+        <div class="financial-chart-header">
+            <h6 class="financial-chart-title">Monthly Sales Trend (Past 12 Months)</h6>
+        </div>
+        <div class="financial-chart-body">
+            <div class="financial-chart-area">
+                <canvas id="monthlySalesChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Outstanding Amounts -->
+    <div class="financial-outstanding-row">
+        <div class="financial-outstanding-col">
+            <div class="financial-outstanding-card">
+                <div class="financial-outstanding-header">
+                    <h6 class="financial-outstanding-title">Outstanding Receivables (Top Customers)</h6>
+                </div>
+                <div class="financial-outstanding-body">
+                    <div class="financial-table-wrapper">
+                        <table id="receivablesTable" class="financial-receivables-table" width="100%" cellspacing="0">
+                            <thead class="financial-receivables-thead">
+                                <tr class="financial-receivables-header-row">
+                                    <th class="financial-receivables-customer-header">Customer</th>
+                                    <th class="financial-receivables-amount-header">Outstanding Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody class="financial-receivables-tbody">
+                                {% for item in outstanding_receivables %}
+                                <tr class="financial-receivables-row">
+                                    <td class="financial-receivables-customer-cell">{{ item.customer_name }}</td>
+                                    <td class="financial-receivables-amount-cell">₹ {{ item.outstanding|floatformat:2 }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr class="financial-receivables-empty-row">
+                                    <td colspan="2" class="financial-receivables-no-data">No outstanding receivables</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="financial-receivables-tfoot">
+                                <tr class="financial-receivables-total-row">
+                                    <th class="financial-receivables-total-label">Total Receivables:</th>
+                                    <th class="financial-receivables-total-value">₹ {{ total_receivables|floatformat:2 }}</th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="financial-outstanding-col">
+            <div class="financial-outstanding-card">
+                <div class="financial-outstanding-header">
+                    <h6 class="financial-outstanding-title">Outstanding Payables (Top Suppliers)</h6>
+                </div>
+                <div class="financial-outstanding-body">
+                    <div class="financial-table-wrapper">
+                        <table id="payablesTable" class="financial-payables-table" width="100%" cellspacing="0">
+                            <thead class="financial-payables-thead">
+                                <tr class="financial-payables-header-row">
+                                    <th class="financial-payables-supplier-header">Supplier</th>
+                                    <th class="financial-payables-amount-header">Outstanding Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody class="financial-payables-tbody">
+                                {% for item in outstanding_payables %}
+                                <tr class="financial-payables-row">
+                                    <td class="financial-payables-supplier-cell">{{ item.supplier_name }}</td>
+                                    <td class="financial-payables-amount-cell">₹ {{ item.outstanding|floatformat:2 }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr class="financial-payables-empty-row">
+                                    <td colspan="2" class="financial-payables-no-data">No outstanding payables</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="financial-payables-tfoot">
+                                <tr class="financial-payables-total-row">
+                                    <th class="financial-payables-total-label">Total Payables:</th>
+                                    <th class="financial-payables-total-value">₹ {{ total_payables|floatformat:2 }}</th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+<script>
+    $(document).ready(function() {
+        // Initialize DataTables
+        $('#receivablesTable').DataTable({
+            "order": [[1, "desc"]]  // Sort by outstanding amount (descending) by default
+        });
+        
+        $('#payablesTable').DataTable({
+            "order": [[1, "desc"]]  // Sort by outstanding amount (descending) by default
+        });
+
+        // Monthly Sales Chart
+        var monthlyLabels = [
+            {% for item in monthly_sales %}
+                "{{ item.month|date:'M Y' }}"{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ];
+        
+        var monthlySales = [
+            {% for item in monthly_sales %}
+                {{ item.total }}{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ];
+
+        var ctx = document.getElementById('monthlySalesChart').getContext('2d');
+        var monthlySalesChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: monthlyLabels,
+                datasets: [{
+                    label: 'Monthly Sales',
+                    lineTension: 0.3,
+                    backgroundColor: "rgba(78, 115, 223, 0.05)",
+                    borderColor: "rgba(78, 115, 223, 1)",
+                    pointRadius: 3,
+                    pointBackgroundColor: "rgba(78, 115, 223, 1)",
+                    pointBorderColor: "rgba(78, 115, 223, 1)",
+                    pointHoverRadius: 5,
+                    pointHoverBackgroundColor: "rgba(78, 115, 223, 1)",
+                    pointHoverBorderColor: "rgba(78, 115, 223, 1)",
+                    pointHitRadius: 10,
+                    pointBorderWidth: 2,
+                    data: monthlySales,
+                }],
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: "rgb(234, 236, 244)",
+                            zeroLineColor: "rgb(234, 236, 244)",
+                            drawBorder: false,
+                            borderDash: [2],
+                            zeroLineBorderDash: [2]
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return '₹' + value.toLocaleString();
+                            }
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false,
+                            drawBorder: false
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return 'Sales: ₹' + context.raw.toLocaleString();
+                            }
+                        }
+                    }
+                },
+                maintainAspectRatio: false
+            }
+        });
+    });
+</script>
+{% endblock %}
+
+
+
+
+
+
+
