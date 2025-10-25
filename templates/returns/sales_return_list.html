@@ -18,19 +18,40 @@
     
     <div class="sr-list-search-form">
         <form method="get" class="sr-list-search">
-            <div class="sr-list-search-row">
-                <div class="sr-list-search-col">
-                    <input type="text" name="search" class="sr-list-search-input" 
-                           placeholder="Search by return number or customer name..." 
-                           value="{{ search_query }}">
+            <div class="sr-list-search-row" style="display: flex; gap: 25px; align-items: center; flex-wrap: wrap; padding: 15px 0; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px; margin: -10px; padding: 20px;">
+                <div class="sr-list-search-col" style="flex: 0 0 auto; margin-right: 15px;">
+                    <input type="text" name="search" class="sr-list-search-input-compact" 
+                           placeholder="🔍 Search returns..." 
+                           value="{{ search_query }}"
+                           style="width: 280px; height: 42px; font-size: 15px; padding: 10px 15px; border: 2px solid #e3f2fd; border-radius: 8px; box-sizing: border-box; background: white; transition: all 0.3s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" 
+                           onfocus="this.style.borderColor='#2196f3'; this.style.boxShadow='0 0 0 3px rgba(33,150,243,0.1)';" 
+                           onblur="this.style.borderColor='#e3f2fd'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)';">
                 </div>
-                <div class="sr-list-search-col-btn">
-                    <button type="submit" class="sr-list-btn sr-list-btn-primary">
-                        <i class="sr-list-search-icon"></i> Search
+                <div class="sr-list-date-filter" style="display: flex; gap: 15px; align-items: center; flex: 0 0 auto; background: white; padding: 10px 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-right: 15px;">
+                    <label class="sr-date-label" style="font-size: 14px; font-weight: 600; color: #495057; margin: 0; white-space: nowrap;">📅 From:</label>
+                    <input type="date" name="start_date" class="sr-date-input" 
+                           value="{{ start_date|default:'' }}"
+                           style="width: 150px; height: 38px; font-size: 13px; padding: 8px 10px; border: 1px solid #dee2e6; border-radius: 6px; box-sizing: border-box; transition: border-color 0.3s ease;" 
+                           onfocus="this.style.borderColor='#2196f3';" onblur="this.style.borderColor='#dee2e6';">
+                    <label class="sr-date-label" style="font-size: 14px; font-weight: 600; color: #495057; margin: 0; white-space: nowrap;">To:</label>
+                    <input type="date" name="end_date" class="sr-date-input" 
+                           value="{{ end_date|default:'' }}"
+                           style="width: 150px; height: 38px; font-size: 13px; padding: 8px 10px; border: 1px solid #dee2e6; border-radius: 6px; box-sizing: border-box; transition: border-color 0.3s ease;" 
+                           onfocus="this.style.borderColor='#2196f3';" onblur="this.style.borderColor='#dee2e6';">
+                </div>
+                <div class="sr-list-search-col-btn" style="display: flex; gap: 15px; align-items: center; flex: 0 0 auto;">
+                    <button type="submit" class="sr-list-btn sr-list-btn-primary sr-btn-compact"
+                            style="height: 42px; padding: 10px 20px; font-size: 15px; font-weight: 600; line-height: 1.2; box-sizing: border-box; background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); border: none; border-radius: 8px; color: white; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(0,123,255,0.3); min-width: 100px;" 
+                            onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,123,255,0.4)';" 
+                            onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,123,255,0.3)';">
+                        🔍 Filter
                     </button>
-                    {% if search_query %}
-                    <a href="{% url 'sales_return_list' %}" class="sr-list-btn sr-list-btn-secondary">
-                        <i class="sr-list-clear-icon"></i> Clear
+                    {% if search_query or start_date or end_date %}
+                    <a href="{% url 'sales_return_list' %}" class="sr-list-btn sr-list-btn-secondary sr-btn-compact"
+                       style="height: 42px; padding: 10px 20px; font-size: 15px; font-weight: 600; line-height: 1.2; box-sizing: border-box; background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%); border: none; border-radius: 8px; color: white; text-decoration: none; display: inline-flex; align-items: center; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(108,117,125,0.3); min-width: 100px; justify-content: center;" 
+                       onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(108,117,125,0.4)';" 
+                       onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(108,117,125,0.3)';">
+                        ✕ Clear
                     </a>
                     {% endif %}
                 </div>
@@ -144,14 +165,14 @@
 </div>
 
 <!-- Delete Confirmation Modal -->
-<div id="deleteModal" class="delete-modal" style="display: none;">
+<div id="deleteModal" class="delete-modal">
     <div class="delete-modal-content">
         <div class="delete-modal-header">
             <h3>Confirm Delete</h3>
             <span class="delete-modal-close" onclick="hideDeleteModal()">&times;</span>
         </div>
         <div class="delete-modal-body">
-            <div style="color: #ef4444; font-size: 3rem; margin-bottom: 1rem; text-align: center;">
+            <div class="delete-modal-icon">
                 <i class="fas fa-exclamation-triangle"></i>
             </div>
             <p>Are you sure you want to delete sales return <strong id="returnNumber"></strong>?</p>
@@ -162,7 +183,7 @@
         </div>
         <div class="delete-modal-footer">
             <button type="button" class="btn-cancel" onclick="hideDeleteModal()">Cancel</button>
-            <form id="deleteForm" method="post" style="display: inline;">
+            <form id="deleteForm" method="post">
                 {% csrf_token %}
                 <button type="submit" class="btn-delete">Delete</button>
             </form>
@@ -170,145 +191,18 @@
     </div>
 </div>
 
-<style>
-.delete-modal {
-    position: fixed;
-    z-index: 1000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
 
-.delete-modal-content {
-    background-color: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-    width: 90%;
-    max-width: 400px;
-    animation: modalSlideIn 0.3s ease-out;
-}
-
-@keyframes modalSlideIn {
-    from {
-        opacity: 0;
-        transform: translateY(-50px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.delete-modal-header {
-    padding: 20px 20px 10px;
-    border-bottom: 1px solid #eee;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.delete-modal-header h3 {
-    margin: 0;
-    color: #dc3545;
-    font-size: 18px;
-}
-
-.delete-modal-close {
-    font-size: 24px;
-    font-weight: bold;
-    color: #aaa;
-    cursor: pointer;
-    line-height: 1;
-}
-
-.delete-modal-close:hover {
-    color: #000;
-}
-
-.delete-modal-body {
-    padding: 20px;
-}
-
-.delete-modal-body p {
-    margin: 0 0 10px 0;
-    color: #333;
-}
-
-.delete-warning {
-    color: #dc3545;
-    font-size: 14px;
-    font-style: italic;
-}
-
-.delete-modal-footer {
-    padding: 10px 20px 20px;
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-}
-
-.btn-cancel {
-    background-color: #6c757d;
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-}
-
-.btn-cancel:hover {
-    background-color: #5a6268;
-}
-
-.btn-delete {
-    background-color: #dc3545;
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-}
-
-.btn-delete:hover {
-    background-color: #c82333;
-}
-
-.keyboard-hint {
-    background: #f8f9fa;
-    border: 1px solid #e9ecef;
-    border-radius: 6px;
-    padding: 8px 12px;
-    margin: 1rem 0;
-    font-size: 12px;
-    color: #6c757d;
-    text-align: center;
-}
-
-.keyboard-hint kbd {
-    background: #e9ecef;
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-family: monospace;
-}
-</style>
 
 <script>
 function showDeleteDialog(returnId, returnNumber) {
     document.getElementById('returnNumber').textContent = returnNumber;
     document.getElementById('deleteForm').action = '/sales-returns/' + returnId + '/delete/';
-    document.getElementById('deleteModal').style.display = 'flex';
+    document.getElementById('deleteModal').classList.add('show');
     document.querySelector('.btn-delete').focus();
 }
 
 function hideDeleteModal() {
-    document.getElementById('deleteModal').style.display = 'none';
+    document.getElementById('deleteModal').classList.remove('show');
 }
 
 function deleteReturn() {
@@ -336,13 +230,13 @@ document.addEventListener('keydown', function(e) {
             activeElement.click();
             return false;
         }
-        if (document.getElementById('deleteModal').style.display === 'flex') {
+        if (document.getElementById('deleteModal').classList.contains('show')) {
             e.preventDefault();
             e.stopPropagation();
             deleteReturn();
             return false;
         }
-    } else if (e.key === 'Escape' && document.getElementById('deleteModal').style.display === 'flex') {
+    } else if (e.key === 'Escape' && document.getElementById('deleteModal').classList.contains('show')) {
         e.preventDefault();
         e.stopPropagation();
         hideDeleteModal();
@@ -358,3 +252,65 @@ document.getElementById('deleteModal').addEventListener('click', function(e) {
 </script>
 
 {% endblock %}
+<style>
+@media (max-width: 768px) {
+    .sr-list-search-row {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 15px !important;
+        padding: 15px !important;
+    }
+    
+    .sr-list-search-col,
+    .sr-list-date-filter,
+    .sr-list-search-col-btn {
+        width: 100% !important;
+    }
+    
+    .sr-list-search-input-compact {
+        width: 100% !important;
+        max-width: none !important;
+    }
+    
+    .sr-list-date-filter {
+        justify-content: space-between !important;
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+    }
+    
+    .sr-date-input {
+        flex: 1 !important;
+        min-width: 120px !important;
+        max-width: 150px !important;
+    }
+    
+    .sr-list-search-col-btn {
+        justify-content: center !important;
+        flex-wrap: wrap !important;
+    }
+    
+    .sr-list-search-col-btn button,
+    .sr-list-search-col-btn a {
+        flex: 1 !important;
+        min-width: 120px !important;
+        justify-content: center !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .sr-list-search-row {
+        padding: 12px !important;
+        gap: 12px !important;
+    }
+    
+    .sr-list-date-filter {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+    
+    .sr-date-input {
+        max-width: none !important;
+        width: 100% !important;
+    }
+}
+</style>

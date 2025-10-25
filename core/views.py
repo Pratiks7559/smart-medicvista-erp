@@ -2626,6 +2626,18 @@ def purchase_return_list(request):
             Q(returnsupplierid__supplier_name__icontains=search_query)
         )
     
+    # Filter by date range
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    if start_date and end_date:
+        try:
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+            returns = returns.filter(returninvoice_date__range=[start_date, end_date])
+        except ValueError:
+            messages.error(request, "Invalid date format. Please use YYYY-MM-DD.")
+    
     paginator = Paginator(returns, 10)
     page_number = request.GET.get('page')
     returns_page = paginator.get_page(page_number)
@@ -2633,6 +2645,8 @@ def purchase_return_list(request):
     context = {
         'returns': returns_page,
         'search_query': search_query,
+        'start_date': start_date if 'start_date' in locals() else '',
+        'end_date': end_date if 'end_date' in locals() else '',
         'title': 'Purchase Returns'
     }
     return render(request, 'returns/purchase_return_list.html', context)
@@ -3140,6 +3154,18 @@ def sales_return_list(request):
             Q(return_sales_invoice_no__icontains=search_query) |
             Q(return_sales_customerid__customer_name__icontains=search_query)
         )
+    
+    # Filter by date range
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    if start_date and end_date:
+        try:
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+            returns = returns.filter(return_sales_invoice_date__range=[start_date, end_date])
+        except ValueError:
+            messages.error(request, "Invalid date format. Please use YYYY-MM-DD.")
         
     paginator = Paginator(returns, 10)
     page_number = request.GET.get('page')
@@ -3148,6 +3174,8 @@ def sales_return_list(request):
     context = {
         'returns': returns_page,
         'search_query': search_query,
+        'start_date': start_date if 'start_date' in locals() else '',
+        'end_date': end_date if 'end_date' in locals() else '',
         'title': 'Sales Returns'
     }
     return render(request, 'returns/sales_return_list.html', context)
