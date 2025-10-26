@@ -141,17 +141,93 @@ def dashboard(request):
     
     # Get low stock products (simplified for dashboard)
     low_stock_products = []
-    products = ProductMaster.objects.all()[:20]  # Limit to first 20 for performance
     
-    for product in products:
-        stock_info = get_stock_status(product.productid)
-        if stock_info['current_stock'] <= 10 and stock_info['current_stock'] > 0:
-            low_stock_products.append({
-                'product': product,
-                'current_stock': stock_info['current_stock']
-            })
-            if len(low_stock_products) >= 10:  # Limit to 10 for dashboard
-                break
+    try:
+        products = ProductMaster.objects.all()[:20]  # Limit to first 20 for performance
+        print(f"Dashboard: Checking {products.count()} products for low stock")
+        
+        for product in products:
+            try:
+                stock_info = get_stock_status(product.productid)
+                current_stock = stock_info.get('current_stock', 0)
+                
+                if current_stock <= 10 and current_stock > 0:
+                    low_stock_products.append({
+                        'product': product,
+                        'current_stock': current_stock
+                    })
+                    print(f"Dashboard: Added low stock product {product.product_name} - Stock: {current_stock}")
+                    
+                    if len(low_stock_products) >= 10:  # Limit to 10 for dashboard
+                        break
+            except Exception as e:
+                print(f"Dashboard: Error processing stock for {product.product_name}: {e}")
+                continue
+        
+        print(f"Dashboard: Total low stock products found: {len(low_stock_products)}")
+        
+    except Exception as e:
+        print(f"Dashboard: Error in low stock section: {e}")
+        low_stock_products = []
+    
+    # Get expired/expiring soon products
+    expired_products = []
+    from datetime import datetime, timedelta
+    
+    try:
+        # Get products expiring in next 30 days or already expired
+        current_date = datetime.now().date()
+        warning_date = current_date + timedelta(days=30)
+        
+        print(f"Dashboard: Looking for products expiring before {warning_date}")
+        
+        # Check purchase records for expiry dates
+        purchases_with_expiry = PurchaseMaster.objects.filter(
+            product_expiry__isnull=False
+        ).exclude(product_expiry='').select_related('productid')[:50]  # Limit for performance
+        
+        print(f"Dashboard: Found {purchases_with_expiry.count()} purchases with expiry dates")
+        
+        for purchase in purchases_with_expiry:
+            try:
+                # Parse expiry date
+                expiry_str = str(purchase.product_expiry)
+                expiry_date = None
+                
+                # Handle different date formats
+                if len(expiry_str) == 10 and '-' in expiry_str:  # YYYY-MM-DD
+                    expiry_date = datetime.strptime(expiry_str, '%Y-%m-%d').date()
+                elif len(expiry_str) == 7 and '-' in expiry_str:  # MM-YYYY
+                    month, year = expiry_str.split('-')
+                    import calendar
+                    last_day = calendar.monthrange(int(year), int(month))[1]
+                    expiry_date = datetime(int(year), int(month), last_day).date()
+                
+                if expiry_date and expiry_date <= warning_date:
+                    # Check if product has stock
+                    stock_info = get_batch_stock_status(purchase.productid.productid, purchase.product_batch_no)
+                    if stock_info[1] and stock_info[0] > 0:  # Has stock
+                        expired_products.append({
+                            'product': purchase.productid,
+                            'batch_no': purchase.product_batch_no,
+                            'expiry_date': expiry_date,
+                            'current_stock': stock_info[0],
+                            'days_to_expiry': (expiry_date - current_date).days
+                        })
+                        
+                        print(f"Dashboard: Added expiring product {purchase.productid.product_name} - {purchase.product_batch_no}")
+                        
+                        if len(expired_products) >= 10:  # Limit to 10 for dashboard
+                            break
+            except Exception as e:
+                print(f"Dashboard: Error processing expiry for {purchase.productid.product_name}: {e}")
+                continue  # Skip invalid dates
+        
+        print(f"Dashboard: Total expired/expiring products found: {len(expired_products)}")
+        
+    except Exception as e:
+        print(f"Dashboard: Error in expired products section: {e}")
+        expired_products = []
     
     today = timezone.now().date()
     
@@ -197,6 +273,9 @@ def dashboard(request):
         total=Sum(F('invoice_total') - F('invoice_paid'))
     )['total'] or 0
     
+    # Debug output
+    print(f"Dashboard context: low_stock={len(low_stock_products)}, expired={len(expired_products)}")
+    
     context = {
         'title': 'Dashboard',
         'product_count': product_count,
@@ -206,6 +285,7 @@ def dashboard(request):
         'recent_purchases': recent_purchases,
         'low_stock_products': low_stock_products,
         'low_stock_count': len(low_stock_products),
+        'expired_products': expired_products,
         'monthly_sales': monthly_sales,
         'monthly_purchases': monthly_purchases,
         'total_receivable': total_receivable,

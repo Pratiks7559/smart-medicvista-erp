@@ -287,6 +287,11 @@
     color: #dc2626;
 }
 
+.status-amber {
+    background: #fffbeb;
+    color: #d97706;
+}
+
 /* Compact Card Buttons */
 .card-button {
     display: inline-flex;

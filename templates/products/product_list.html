@@ -421,7 +421,6 @@
                         <th class="product-list-packing-header">Packing</th>
                         <th class="product-list-batch-header">Batches & Stock</th>
                         <th class="product-list-rates-header">Batch Rates (A/B/C)</th>
-                        <th class="product-list-mrp-header">MRP</th>
                         <th class="product-list-barcode-header">Barcode</th>
                         <th class="product-list-category-header">Category</th>
                         <th class="product-list-stock-header">Stock</th>
@@ -469,25 +468,12 @@
                                             {% else %}
                                                 <small class="text-muted">No rates</small>
                                             {% endif %}
+                                            <br><small class="text-success">MRP: ₹{{ batch.mrp|floatformat:2 }}</small>
                                         </div>
                                     {% endfor %}
                                 </div>
                             {% else %}
                                 <span class="text-muted">No batches</span>
-                            {% endif %}
-                        </td>
-                        <td class="product-list-mrp-cell">
-                            {% if product.batches_info %}
-                                <div class="mrp-container" style="max-height: 120px; overflow-y: auto;">
-                                    {% for batch in product.batches_info %}
-                                        <div style="margin-bottom: 3px; font-size: 12px; padding: 2px 4px; background: #f8f9fa; border-radius: 3px;">
-                                            <strong>{{ batch.batch_no }}</strong><br>
-                                            <span class="text-success">₹{{ batch.mrp|floatformat:2 }}</span>
-                                        </div>
-                                    {% endfor %}
-                                </div>
-                            {% else %}
-                                <span class="text-muted">N/A</span>
                             {% endif %}
                         </td>
                         <td class="product-list-barcode-cell">{% if product.product_barcode %}
@@ -530,7 +516,7 @@
                     </tr>
                     {% empty %}
                     <tr class="product-list-empty-row">
-                        <td colspan="11" class="product-list-empty-cell">No products found.</td>
+                        <td colspan="10" class="product-list-empty-cell">No products found.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
