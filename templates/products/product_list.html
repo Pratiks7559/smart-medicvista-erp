@@ -4,23 +4,28 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/product_list.css' %}">
+<link rel="stylesheet" href="{% static 'css/product-search-autocomplete.css' %}">
 <style>
+body.modal-open {
+    overflow: hidden;
+}
+
 
 .product-list-page-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 15px;
+    gap: 10px;
     align-items: center;
     margin: 20px 0;
     padding: 15px;
     background: #f8f9fa;
     border-radius: 8px;
     border: 1px solid #e9ecef;
+    justify-content: flex-start;
 }
 
 .product-list-add-btn,
-.product-list-bulk-upload-btn,
-.product-list-export-btn {
+.product-list-bulk-upload-btn {
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -44,49 +49,124 @@
 
 .product-list-bulk-upload-btn {
     background: #28a745;
+    flex-shrink: 0;
 }
 
 .product-list-bulk-upload-btn:hover {
     background: #1e7e34;
 }
 
-.product-list-export-buttons {
+/* Search and Sort Styles */
+.product-list-search-section {
     display: flex;
-    gap: 10px;
-    margin-left: auto;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
 }
 
-.product-list-export-btn {
-    background: #6c757d;
+.product-list-search-form {
+    position: relative;
+    flex: 1;
+    min-width: 300px;
+}
+
+.sort-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.sort-label {
+    font-weight: 500;
+    color: #555;
     font-size: 14px;
 }
 
-.product-list-export-btn:hover {
-    background: #545b62;
+.sort-select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: white;
+    font-size: 14px;
+    min-width: 180px;
+    cursor: pointer;
 }
 
-.product-list-export-pdf {
-    background: #dc3545;
+.sort-select:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
 }
 
-.product-list-export-pdf:hover {
-    background: #c82333;
+/* Table Header Sort Links */
+.sort-link {
+    color: #333;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
 }
 
-.product-list-export-excel {
-    background: #28a745;
+.sort-link:hover {
+    background-color: #f8f9fa;
+    color: #007bff;
+    text-decoration: none;
 }
 
-.product-list-export-excel:hover {
-    background: #1e7e34;
+.sort-link.active {
+    color: #007bff;
+    font-weight: 600;
 }
 
-.product-list-export-print {
-    background: #17a2b8;
+.sort-link i {
+    font-size: 12px;
+    opacity: 0.7;
 }
 
-.product-list-export-print:hover {
-    background: #138496;
+.sort-link:hover i,
+.sort-link.active i {
+    opacity: 1;
+}
+
+/* Search Input Enhancements */
+.product-list-search-input {
+    padding-right: 45px;
+}
+
+.product-list-search-input:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .product-list-search-section {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+    
+    .product-list-search-form {
+        min-width: auto;
+    }
+    
+    .sort-controls {
+        justify-content: space-between;
+    }
+    
+    .sort-select {
+        min-width: auto;
+        flex: 1;
+    }
+    
+    .sort-link {
+        font-size: 12px;
+        padding: 3px;
+    }
 }
 
 /* Pagination Styles */
@@ -313,7 +393,242 @@
     to { transform: translateX(100%); opacity: 0; }
 }
 
+/* Bulk Upload Modal Styles */
+.bulk-upload-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.3s ease;
+}
+
+.bulk-upload-modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+}
+
+.bulk-upload-modal-content {
+    position: relative;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    max-width: 600px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: slideUp 0.3s ease;
+}
+
+.bulk-upload-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid #e9ecef;
+    background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
+    color: white;
+    border-radius: 12px 12px 0 0;
+}
+
+.bulk-upload-modal-header h3 {
+    margin: 0;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.bulk-upload-modal-close {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.bulk-upload-modal-close:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: rotate(90deg);
+}
+
+.bulk-upload-modal-body {
+    padding: 24px;
+}
+
+.bulk-upload-instructions {
+    background: #fff3cd;
+    padding: 16px;
+    border-radius: 8px;
+    border-left: 4px solid #ffc107;
+    margin-bottom: 20px;
+}
+
+.bulk-upload-instructions h5 {
+    margin: 0 0 12px 0;
+    color: #856404;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.bulk-upload-instructions ol {
+    margin: 0;
+    padding-left: 20px;
+    color: #856404;
+}
+
+.bulk-upload-instructions li {
+    margin-bottom: 6px;
+    font-size: 14px;
+}
+
+.template-download-section {
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+.template-download-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    background: #007bff;
+    color: white;
+    text-decoration: none;
+    border-radius: 6px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.template-download-btn:hover {
+    background: #0056b3;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+}
+
+.file-input-group {
+    margin-bottom: 20px;
+}
+
+.file-input-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #333;
+}
+
+.file-input-group input[type="file"] {
+    width: 100%;
+    padding: 10px;
+    border: 2px dashed #dee2e6;
+    border-radius: 6px;
+    background: #f8f9fa;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.file-input-group input[type="file"]:hover {
+    border-color: #28a745;
+    background: #e8f5e9;
+}
+
+.form-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.btn-cancel, .btn-upload {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.btn-cancel {
+    background: #6c757d;
+    color: white;
+}
+
+.btn-cancel:hover {
+    background: #5a6268;
+}
+
+.btn-upload {
+    background: #28a745;
+    color: white;
+}
+
+.btn-upload:hover {
+    background: #1e7e34;
+    transform: translateY(-1px);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from { 
+        transform: translateY(50px);
+        opacity: 0;
+    }
+    to { 
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
 @media (max-width: 768px) {
+    .bulk-upload-modal-content {
+        width: 95%;
+        max-height: 95vh;
+    }
+    
+    .bulk-upload-modal-header {
+        padding: 16px;
+    }
+    
+    .bulk-upload-modal-header h3 {
+        font-size: 18px;
+    }
+    
+    .bulk-upload-modal-body {
+        padding: 16px;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+    }
+    
+    .btn-cancel, .btn-upload {
+        width: 100%;
+        justify-content: center;
+    }
+    
     .product-list-pagination-section {
         flex-direction: column;
         text-align: center;
@@ -369,24 +684,10 @@
         <i class="fas fa-plus product-list-add-icon"></i>Add Product
     </a>
     {% if request.user.user_type == 'admin' or request.user.user_type == 'Admin' %}
-    <a href="{% url 'bulk_upload_products' %}" class="product-list-bulk-upload-btn">
+    <button type="button" onclick="openBulkUploadDialog()" class="product-list-bulk-upload-btn">
         <i class="fas fa-file-upload product-list-bulk-icon"></i>Bulk Upload
-    </a>
+    </button>
     {% endif %}
-    <div class="product-list-export-buttons">
-        <a href="{% url 'export_products_pdf' %}" class="product-list-export-btn product-list-export-pdf">
-            <i class="fas fa-file-pdf product-list-pdf-icon"></i> PDF
-        </a>
-        <a href="{% url 'export_products_excel' %}" class="product-list-export-btn product-list-export-excel">
-            <i class="fas fa-file-csv product-list-csv-icon"></i> CSV/Excel
-        </a>
-        <button onclick="window.print()" class="product-list-export-btn product-list-export-print">
-            <i class="fas fa-print product-list-print-icon"></i> Print (Ctrl+P)
-        </button>
-        <div class="keyboard-shortcuts-hint" style="margin-left: 15px; padding: 8px 12px; background: #e3f2fd; border: 1px solid #bbdefb; border-radius: 4px; font-size: 12px; color: #1976d2;">
-            <i class="fas fa-keyboard"></i> Tip: Press <kbd style="background: #fff; padding: 2px 6px; border-radius: 3px; font-family: monospace;">Ctrl+D</kbd> to delete selected item
-        </div>
-    </div>
 </div>
 {% endblock %}
 
@@ -396,11 +697,27 @@
         <div class="product-list-header">
             <div class="product-list-search-section">
                 <form method="GET" class="product-list-search-form">
-                    <input type="text" name="search" placeholder="Search products..." value="{{ search_query }}" class="product-list-search-input">
+                    <input type="text" 
+                           id="product-search-input"
+                           name="search" 
+                           placeholder="Search products by name, company, category..." 
+                           value="{{ search_query }}" 
+                           class="product-list-search-input"
+                           autocomplete="off">
                     <button type="submit" class="product-list-search-btn">
                         <i class="fas fa-search product-list-search-icon"></i>
                     </button>
+                    <div id="search-suggestions" class="search-suggestions-container"></div>
                 </form>
+                
+                <div class="sort-controls">
+                    <label for="sort-select" class="sort-label">Sort by:</label>
+                    <select id="sort-select" name="sort" class="sort-select">
+                        {% for value, label in sort_options %}
+                            <option value="{{ value }}" {% if sort_by == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
             </div>
             
             <div class="product-list-add-section">
@@ -408,6 +725,10 @@
                     <i class="fas fa-plus"></i>
                     Add Products
                 </a>
+                <button type="button" onclick="openBulkUploadDialog()" class="product-list-header-add-btn" style="background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%); margin-left: 10px; border: none; cursor: pointer;">
+                    <i class="fas fa-file-upload"></i>
+                    Bulk Upload
+                </button>
             </div>
         </div>
         
@@ -415,15 +736,40 @@
             <table class="product-list-table">
                 <thead class="product-list-thead">
                     <tr class="product-list-header-row">
-                        <th class="product-list-id-header">ID</th>
-                        <th class="product-list-name-header">Product Name</th>
-                        <th class="product-list-company-header">Company</th>
+                        <th class="product-list-id-header">
+                            <a href="?sort=productid{% if search_query %}&search={{ search_query }}{% endif %}" 
+                               class="sort-link {% if sort_by == 'productid' %}active{% endif %}">
+                                ID <i class="fas fa-sort"></i>
+                            </a>
+                        </th>
+                        <th class="product-list-name-header">
+                            <a href="?sort=name{% if search_query %}&search={{ search_query }}{% endif %}" 
+                               class="sort-link {% if sort_by == 'name' %}active{% endif %}">
+                                Product Name <i class="fas fa-sort"></i>
+                            </a>
+                        </th>
+                        <th class="product-list-company-header">
+                            <a href="?sort=company{% if search_query %}&search={{ search_query }}{% endif %}" 
+                               class="sort-link {% if sort_by == 'company' %}active{% endif %}">
+                                Company/Supplier <i class="fas fa-sort"></i>
+                            </a>
+                        </th>
                         <th class="product-list-packing-header">Packing</th>
                         <th class="product-list-batch-header">Batches & Stock</th>
                         <th class="product-list-rates-header">Batch Rates (A/B/C)</th>
                         <th class="product-list-barcode-header">Barcode</th>
-                        <th class="product-list-category-header">Category</th>
-                        <th class="product-list-stock-header">Stock</th>
+                        <th class="product-list-category-header">
+                            <a href="?sort=category{% if search_query %}&search={{ search_query }}{% endif %}" 
+                               class="sort-link {% if sort_by == 'category' %}active{% endif %}">
+                                Category <i class="fas fa-sort"></i>
+                            </a>
+                        </th>
+                        <th class="product-list-stock-header">
+                            <a href="?sort=stock{% if search_query %}&search={{ search_query }}{% endif %}" 
+                               class="sort-link {% if sort_by == 'stock' %}active{% endif %}">
+                                Stock <i class="fas fa-sort"></i>
+                            </a>
+                        </th>
                         <th class="product-list-actions-header">Actions</th>
                     </tr>
                 </thead>
@@ -535,12 +881,12 @@
                 <ul class="product-list-pagination">
                     {% if products.has_previous %}
                         <li class="product-list-page-item">
-                            <a class="product-list-page-link" href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}">
+                            <a class="product-list-page-link" href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if sort_by %}&sort={{ sort_by }}{% endif %}">
                                 <i class="fas fa-angle-double-left"></i> First
                             </a>
                         </li>
                         <li class="product-list-page-item">
-                            <a class="product-list-page-link" href="?page={{ products.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}">
+                            <a class="product-list-page-link" href="?page={{ products.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if sort_by %}&sort={{ sort_by }}{% endif %}">
                                 <i class="fas fa-angle-left"></i> Previous
                             </a>
                         </li>
@@ -553,19 +899,19 @@
                             </li>
                         {% elif num > products.number|add:'-3' and num < products.number|add:'3' %}
                             <li class="product-list-page-item">
-                                <a class="product-list-page-link" href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}">{{ num }}</a>
+                                <a class="product-list-page-link" href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}{% if sort_by %}&sort={{ sort_by }}{% endif %}">{{ num }}</a>
                             </li>
                         {% endif %}
                     {% endfor %}
                     
                     {% if products.has_next %}
                         <li class="product-list-page-item">
-                            <a class="product-list-page-link" href="?page={{ products.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}">
+                            <a class="product-list-page-link" href="?page={{ products.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if sort_by %}&sort={{ sort_by }}{% endif %}">
                                 Next <i class="fas fa-angle-right"></i>
                             </a>
                         </li>
                         <li class="product-list-page-item">
-                            <a class="product-list-page-link" href="?page={{ products.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}">
+                            <a class="product-list-page-link" href="?page={{ products.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if sort_by %}&sort={{ sort_by }}{% endif %}">
                                 Last <i class="fas fa-angle-double-right"></i>
                             </a>
                         </li>
@@ -577,11 +923,95 @@
 
     </div>
 </div>
+<!-- Bulk Upload Dialog Modal -->
+<div id="bulkUploadModal" class="bulk-upload-modal" style="display: none;">
+    <div class="bulk-upload-modal-overlay" onclick="closeBulkUploadDialog()"></div>
+    <div class="bulk-upload-modal-content">
+        <div class="bulk-upload-modal-header">
+            <h3><i class="fas fa-file-upload"></i> Bulk Upload Products</h3>
+            <button class="bulk-upload-modal-close" onclick="closeBulkUploadDialog()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="bulk-upload-modal-body">
+            <div class="bulk-upload-instructions">
+                <h5><i class="fas fa-info-circle"></i> Instructions:</h5>
+                <ol>
+                    <li>Download the CSV template using the button below.</li>
+                    <li>Fill in the product details in the CSV file.</li>
+                    <li>Save the file and upload it using the form below.</li>
+                </ol>
+            </div>
+            
+            <div class="template-download-section">
+                <a href="{% url 'bulk_upload_products' %}?sample=true" class="template-download-btn" target="_blank">
+                    <i class="fas fa-download"></i> Download CSV Template
+                </a>
+            </div>
+            
+            <form method="post" enctype="multipart/form-data" action="{% url 'bulk_upload_products' %}" id="bulkUploadForm">
+                {% csrf_token %}
+                <div class="file-input-group">
+                    <label for="csv_file">CSV File</label>
+                    <input type="file" name="csv_file" id="csv_file" accept=".csv" required>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn-cancel" onclick="closeBulkUploadDialog()">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button type="submit" class="btn-upload">
+                        <i class="fas fa-upload"></i> Upload
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
+<script src="{% static 'js/product-search-autocomplete.js' %}"></script>
+<script>
+function openBulkUploadDialog() {
+    document.getElementById('bulkUploadModal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+}
+
+function closeBulkUploadDialog() {
+    document.getElementById('bulkUploadModal').style.display = 'none';
+    document.body.style.overflow = 'auto';
+    document.getElementById('bulkUploadForm').reset();
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // Close bulk upload dialog on Escape
+    if (e.key === 'Escape') {
+        closeBulkUploadDialog();
+    }
+});
+
+// Handle form submission
+document.getElementById('bulkUploadForm').addEventListener('submit', function(e) {
+    const fileInput = document.getElementById('csv_file');
+    if (!fileInput.files.length) {
+        e.preventDefault();
+        alert('Please select a CSV file');
+    }
+});
+</script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Fix cursor position in search input
+    const searchInput = document.querySelector('.product-list-search-input');
+    if (searchInput) {
+        searchInput.addEventListener('focus', function() {
+            const len = this.value.length;
+            setTimeout(() => {
+                this.setSelectionRange(len, len);
+            }, 0);
+        });
+    }
     // Make delete buttons focusable
     const deleteButtons = document.querySelectorAll('.delete-btn');
     deleteButtons.forEach(btn => {

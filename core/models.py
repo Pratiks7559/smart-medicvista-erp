@@ -5,7 +5,8 @@ from django.core.validators import MinValueValidator
 from datetime import datetime
 from decimal import Decimal
 import csv
-from django.http import HttpResponse 
+from django.http import HttpResponse
+from django.db.models import Q, F 
 
 # Create your models here.
 class Web_User(AbstractUser):
@@ -52,18 +53,19 @@ class ProductMaster(models.Model):
 class SupplierMaster(models.Model):
     supplierid=models.BigAutoField(primary_key=True, auto_created=True)
     supplier_name=models.CharField(max_length=200)
-    supplier_type=models.CharField(max_length=200)
-    supplier_address=models.CharField(max_length=200)
+    supplier_type=models.CharField(max_length=200, blank=True, default='')
+    supplier_address=models.CharField(max_length=200, blank=True, default='')
     supplier_mobile=models.CharField(max_length=15)
-    supplier_whatsapp=models.CharField(max_length=15)
-    supplier_emailid=models.CharField(max_length=60)
-    supplier_spoc=models.CharField(max_length=100)
-    supplier_dlno=models.CharField(max_length=30)
-    supplier_gstno=models.CharField(max_length=20)
-    supplier_bank=models.CharField(max_length=200)
-    supplier_bankaccountno=models.CharField(max_length=30)
-    supplier_bankifsc=models.CharField(max_length=20)
-    supplier_upi=models.CharField(max_length=50, null=True)
+    supplier_whatsapp=models.CharField(max_length=15, blank=True, default='')
+    supplier_emailid=models.CharField(max_length=60, blank=True, default='')
+    supplier_spoc=models.CharField(max_length=100, blank=True, default='')
+    supplier_dlno=models.CharField(max_length=30, blank=True, default='')
+    supplier_gstno=models.CharField(max_length=20, blank=True, default='')
+    supplier_bank=models.CharField(max_length=200, blank=True, default='')
+    supplier_branch=models.CharField(max_length=200, blank=True, default='NA')
+    supplier_bankaccountno=models.CharField(max_length=30, blank=True, default='')
+    supplier_bankifsc=models.CharField(max_length=20, blank=True, default='')
+    supplier_upi=models.CharField(max_length=50, null=True, blank=True, default='')
     
     def __str__(self):
         return self.supplier_name
@@ -80,10 +82,6 @@ class CustomerMaster(models.Model):
     customer_dlno=models.CharField(max_length=30, blank=True, default='NA')
     customer_gstno=models.CharField(max_length=20, blank=True, default='NA')
     customer_food_license_no=models.CharField(max_length=30, blank=True, default='NA')
-    customer_bank=models.CharField(max_length=200,blank=True, default='NA')
-    customer_bankaccountno=models.CharField(max_length=30,blank=True, default='NA')
-    customer_bankifsc=models.CharField(max_length=20, blank=True, default='NA')
-    customer_upi=models.CharField(max_length=50, blank=True)
     customer_credit_days=models.IntegerField(blank=True, default=0)
     
     def __str__(self):
@@ -94,10 +92,15 @@ class InvoiceMaster(models.Model):
     invoice_no=models.CharField(max_length=20)
     invoice_date=models.DateField(null=False, blank=False, default=timezone.now)
     supplierid=models.ForeignKey(SupplierMaster, on_delete=models.CASCADE)
-    scroll_no=models.CharField(max_length=50, blank=True, null=True, help_text='Manual scroll number for invoice tracking')
     transport_charges=models.FloatField()
     invoice_total=models.FloatField(null=False, blank=False)
     invoice_paid=models.FloatField(null=False, blank=False, default=0)
+    payment_status=models.CharField(max_length=20, choices=[
+        ('pending', 'Pending'),
+        ('partial', 'Partially Paid'),
+        ('paid', 'Fully Paid'),
+        ('overdue', 'Overdue')
+    ], default='pending')
     class Meta:
         constraints = [
             models.UniqueConstraint(fields=['invoice_no', 'supplierid'], name='unique_invoiceno_supplierid')
@@ -142,8 +145,14 @@ class PurchaseMaster(models.Model):
     product_actual_rate=models.FloatField(default=0.0)
     total_amount=models.FloatField(default=0.0)  
     purchase_entry_date=models.DateTimeField(default=timezone.now)
-    IGST=models.FloatField(default=0.0)
-    purchase_calculation_mode=models.CharField(max_length=5, default='flat') 
+    CGST=models.FloatField(default=0.0)
+    SGST=models.FloatField(default=0.0)
+    purchase_calculation_mode=models.CharField(max_length=5, default='flat')
+    rate_a=models.FloatField(default=0.0, blank=True)
+    rate_b=models.FloatField(default=0.0, blank=True)
+    rate_c=models.FloatField(default=0.0, blank=True)
+    source_challan_no=models.CharField(max_length=50, blank=True, null=True)
+    source_challan_date=models.DateField(blank=True, null=True)
     #calculation_mode indicates how discount is calculated by flat-rupees or %-percent
     
     def __str__(self):
@@ -153,6 +162,7 @@ class SalesInvoiceMaster(models.Model):
     sales_invoice_no=models.CharField(primary_key=True, max_length=20)
     sales_invoice_date=models.DateField(null=False, blank=False)
     customerid=models.ForeignKey(CustomerMaster, on_delete=models.CASCADE)
+    invoice_series=models.ForeignKey('InvoiceSeries', on_delete=models.SET_NULL, null=True, blank=True)
     sales_transport_charges=models.FloatField(default=0)
     sales_invoice_paid=models.FloatField(null=False, blank=False, default=0)
     
@@ -185,12 +195,15 @@ class SalesMaster(models.Model):
     sale_quantity=models.FloatField(default=0.0)
     sale_scheme=models.FloatField(default=0.0)
     sale_discount=models.FloatField(default=0.0)
-    sale_igst=models.FloatField(default=0.0)
+    sale_cgst=models.FloatField(default=0.0)
+    sale_sgst=models.FloatField(default=0.0)
     sale_total_amount=models.FloatField(default=0.0)
     sale_entry_date=models.DateTimeField(default=timezone.now)
     rate_applied=models.CharField(max_length=10, blank=True, default='NA')
     sale_calculation_mode=models.CharField(max_length=5, default='flat') 
     #calculation_mode indicates how discount is calculated by flat-rupees or %-percent
+    source_challan_no=models.CharField(max_length=50, blank=True, null=True, help_text='Source customer challan number if pulled from challan')
+    source_challan_date=models.DateField(blank=True, null=True, help_text='Source customer challan date if pulled from challan')
    
     def __str__(self):
         return f"{self.product_name} - {self.product_batch_no} - {self.sale_quantity}"
@@ -252,8 +265,8 @@ class ReturnPurchaseMaster(models.Model):
     returnproduct_MRP=models.FloatField(default=0.0)  
     returnproduct_purchase_rate=models.FloatField()  
     returnproduct_quantity=models.FloatField()
-    returnproduct_scheme=models.FloatField(default=0.0)
-    returnproduct_charges=models.FloatField()
+    returnproduct_cgst=models.FloatField(default=2.5)
+    returnproduct_sgst=models.FloatField(default=2.5)
     returntotal_amount=models.FloatField(default=0.0)
     return_reason=models.CharField(max_length=200, blank=True, null=True)
     returnpurchase_entry_date=models.DateField(default=timezone.now)
@@ -266,6 +279,7 @@ class ReturnSalesInvoiceMaster(models.Model):
     return_sales_invoice_date=models.DateField(null=False, blank=False)
     return_sales_customerid=models.ForeignKey(CustomerMaster, on_delete=models.CASCADE)
     return_sales_charges=models.FloatField(default=0)
+    transport_charges=models.FloatField(default=0)
     sales_invoice_no = models.ForeignKey(SalesMaster, on_delete=models.CASCADE, related_name='returns',null=True)
     return_sales_invoice_total=models.FloatField(null=False, blank=False)
     return_sales_invoice_paid=models.FloatField(null=False, blank=False, default=0)
@@ -290,6 +304,13 @@ class ReturnSalesInvoicePaid(models.Model):
         return f"Return Payment of {self.return_sales_payment_amount} for Return Sales Invoice #{self.return_sales_ip_invoice_no.return_sales_invoice_no}"
 
 class ReturnSalesMaster(models.Model):
+    RETURN_REASON_CHOICES = [
+        ('', 'Select Reason'),
+        ('non_moving', 'Non Moving'),
+        ('breakage', 'Breakage'),
+        ('expiry', 'Expiry'),
+    ]
+    
     return_sales_id=models.BigAutoField(primary_key=True, auto_created=True)
     return_sales_invoice_no=models.ForeignKey(ReturnSalesInvoiceMaster, on_delete=models.CASCADE)
     return_customerid=models.ForeignKey(CustomerMaster, on_delete=models.CASCADE)
@@ -304,9 +325,10 @@ class ReturnSalesMaster(models.Model):
     return_sale_quantity=models.FloatField(default=0.0)
     return_sale_scheme=models.FloatField(default=0.0)
     return_sale_discount=models.FloatField(default=0.0)
-    return_sale_igst=models.FloatField(default=0.0)
+    return_sale_cgst=models.FloatField(default=0.0)
+    return_sale_sgst=models.FloatField(default=0.0)
     return_sale_total_amount=models.FloatField(default=0.0)
-    return_reason=models.CharField(max_length=200, blank=True, null=True)
+    return_reason=models.CharField(max_length=200, blank=True, null=True, choices=RETURN_REASON_CHOICES)
     return_sale_entry_date=models.DateTimeField(default=timezone.now)
     return_sale_calculation_mode=models.CharField(max_length=20, default='percentage', choices=[('percentage', 'Percentage'), ('fixed', 'Fixed Amount')])
     
@@ -328,44 +350,317 @@ class SaleRateMaster(models.Model):
     def __str__(self):
         return f"Batch Rates for {self.productid.product_name} - Batch {self.product_batch_no}"
 
-class PaymentMaster(models.Model):
-    payment_id = models.BigAutoField(primary_key=True, auto_created=True)
-    payment_date = models.DateField(null=False, blank=False, default=timezone.now)
-    payment_amount = models.FloatField()
-    payment_method = models.CharField(max_length=50, choices=[
-        ('cash', 'Cash'),
-        ('cheque', 'Cheque'),
-        ('bank_transfer', 'Bank Transfer'),
-        ('upi', 'UPI'),
-        ('card', 'Card')
-    ])
-    payment_description = models.TextField(blank=True, null=True)
-    payment_reference = models.CharField(max_length=100, blank=True, null=True)
-    supplier = models.ForeignKey(SupplierMaster, on_delete=models.CASCADE, null=True, blank=True)
-    invoice = models.ForeignKey(InvoiceMaster, on_delete=models.CASCADE, null=True, blank=True)
+
+
+
+
+class InvoiceSeries(models.Model):
+    series_id = models.BigAutoField(primary_key=True, auto_created=True)
+    series_name = models.CharField(max_length=10, unique=True)
+    series_prefix = models.CharField(max_length=5, blank=True)
+    current_number = models.IntegerField(default=1)
+    is_active = models.BooleanField(default=True)
+    created_date = models.DateTimeField(default=timezone.now)
     
     def __str__(self):
-        return f"Payment #{self.payment_id} - ₹{self.payment_amount}"
+        return f"{self.series_name} (Current: {self.current_number})"
+    
+    def get_next_invoice_number(self):
+        """Generate next invoice number for this series"""
+        if self.series_prefix:
+            invoice_no = f"{self.series_prefix}{self.current_number:07d}"
+        else:
+            invoice_no = f"{self.series_name}{self.current_number:07d}"
+        
+        # Increment counter
+        self.current_number += 1
+        self.save()
+        
+        return invoice_no
+    
+    class Meta:
+        verbose_name_plural = "Invoice Series"
 
-class ReceiptMaster(models.Model):
-    receipt_id = models.BigAutoField(primary_key=True, auto_created=True)
-    receipt_date = models.DateField(null=False, blank=False, default=timezone.now)
-    receipt_amount = models.FloatField()
-    receipt_method = models.CharField(max_length=50, choices=[
-        ('cash', 'Cash'),
-        ('cheque', 'Cheque'),
-        ('bank_transfer', 'Bank Transfer'),
-        ('upi', 'UPI'),
-        ('card', 'Card')
-    ])
-    receipt_description = models.TextField(blank=True, null=True)
-    receipt_reference = models.CharField(max_length=100, blank=True, null=True)
-    customer = models.ForeignKey(CustomerMaster, on_delete=models.CASCADE, null=True, blank=True)
-    sales_invoice = models.ForeignKey(SalesInvoiceMaster, on_delete=models.CASCADE, null=True, blank=True)
+class Challan1(models.Model):
+    challan_id = models.BigAutoField(primary_key=True, auto_created=True)
+    challan_no = models.CharField(max_length=50, unique=True)
+    challan_date = models.DateField(default=timezone.now)
+    supplier = models.ForeignKey(SupplierMaster, on_delete=models.CASCADE)
+    challan_total = models.FloatField(default=0.0)
+    transport_charges = models.FloatField(default=0.0)
+    challan_paid = models.FloatField(default=0.0)
+    challan_remark = models.TextField(default='None')
+    is_invoiced = models.BooleanField(default=False)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
     
     def __str__(self):
-        return f"Receipt #{self.receipt_id} - ₹{self.receipt_amount}"
+        return f"Challan #{self.challan_no} - {self.supplier.supplier_name}"
+    
+    class Meta:
+        db_table = 'challan1'
+        ordering = ['-challan_date', '-challan_id']
+
+class SupplierChallanMaster(models.Model):
+    challan_id = models.BigAutoField(primary_key=True, auto_created=True)
+    product_suppliername = models.ForeignKey(SupplierMaster, on_delete=models.CASCADE)
+    product_challan_id = models.ForeignKey(Challan1, on_delete=models.CASCADE)
+    product_challan_no = models.CharField(max_length=50)
+    product_id = models.ForeignKey(ProductMaster, on_delete=models.CASCADE)
+    product_name = models.CharField(max_length=200)
+    product_company = models.CharField(max_length=200)
+    product_packing = models.CharField(max_length=20)
+    product_batch_no = models.CharField(max_length=20)
+    product_expiry = models.CharField(max_length=7, help_text="Format: MM-YYYY")
+    product_mrp = models.FloatField()
+    product_purchase_rate = models.FloatField()
+    product_quantity = models.FloatField()
+    product_scheme = models.FloatField(default=0.0)
+    product_discount = models.FloatField(default=0.0)
+    product_transportation_charges = models.FloatField(default=0.0)
+    actual_rate_per_qty = models.FloatField(default=0.0)
+    product_actual_rate = models.FloatField(default=0.0)
+    total_amount = models.FloatField(default=0.0)
+    challan_entry_date = models.DateTimeField(default=timezone.now)
+    cgst = models.FloatField(default=2.5)
+    sgst = models.FloatField(default=2.5)
+    challan_calculation_mode = models.CharField(max_length=10, default='flat')
+    rate_a=models.FloatField(default=0.0, blank=True)
+    rate_b=models.FloatField(default=0.0, blank=True)
+    rate_c=models.FloatField(default=0.0, blank=True)
+    
+    def __str__(self):
+        return f"{self.product_name} - {self.product_batch_no} - {self.product_quantity}"
+    
+    class Meta:
+        db_table = 'supplier_challan_master'
+        ordering = ['-challan_entry_date']
+
+class SupplierChallanMaster2(models.Model):
+    challan_id = models.BigAutoField(primary_key=True, auto_created=True)
+    product_suppliername = models.ForeignKey(SupplierMaster, on_delete=models.CASCADE)
+    product_challan_id = models.ForeignKey(Challan1, on_delete=models.CASCADE)
+    product_challan_no = models.CharField(max_length=50)
+    product_id = models.ForeignKey(ProductMaster, on_delete=models.CASCADE)
+    product_name = models.CharField(max_length=200)
+    product_company = models.CharField(max_length=200)
+    product_packing = models.CharField(max_length=20)
+    product_batch_no = models.CharField(max_length=20)
+    product_expiry = models.CharField(max_length=7, help_text="Format: MM-YYYY")
+    product_mrp = models.FloatField()
+    product_purchase_rate = models.FloatField()
+    product_quantity = models.FloatField()
+    product_scheme = models.FloatField(default=0.0)
+    product_discount = models.FloatField(default=0.0)
+    product_transportation_charges = models.FloatField(default=0.0)
+    actual_rate_per_qty = models.FloatField(default=0.0)
+    product_actual_rate = models.FloatField(default=0.0)
+    total_amount = models.FloatField(default=0.0)
+    challan_entry_date = models.DateTimeField(default=timezone.now)
+    cgst = models.FloatField(default=2.5)
+    sgst = models.FloatField(default=2.5)
+    challan_calculation_mode = models.CharField(max_length=10, default='flat')
+    rate_a=models.FloatField(default=0.0, blank=True)
+    rate_b=models.FloatField(default=0.0, blank=True)
+    rate_c=models.FloatField(default=0.0, blank=True)
+    
+    def __str__(self):
+        return f"{self.product_name} - {self.product_batch_no} - {self.product_quantity}"
+    
+    class Meta:
+        db_table = 'supplier_challan_master2'
+        ordering = ['-challan_entry_date']
+
+class ChallanSeries(models.Model):
+    series_id = models.BigAutoField(primary_key=True, auto_created=True)
+    series_name = models.CharField(max_length=10, unique=True)
+    is_active = models.BooleanField(default=True)
+    created_date = models.DateTimeField(default=timezone.now)
+    
+    def __str__(self):
+        return self.series_name
+    
+    class Meta:
+        verbose_name_plural = "Challan Series"
+
+class CustomerChallan(models.Model):
+    customer_challan_id = models.BigAutoField(primary_key=True, auto_created=True)
+    customer_challan_no = models.CharField(max_length=50, unique=True)
+    customer_challan_date = models.DateField(default=timezone.now)
+    customer_name = models.ForeignKey(CustomerMaster, on_delete=models.CASCADE)
+    challan_series = models.ForeignKey('ChallanSeries', on_delete=models.SET_NULL, null=True, blank=True)
+    customer_transport_charges = models.FloatField(default=0.0)
+    challan_total = models.FloatField(default=0.0)
+    challan_invoice_paid = models.FloatField(default=0.0)
+    is_invoiced = models.BooleanField(default=False)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Customer Challan #{self.customer_challan_no} - {self.customer_name.customer_name}"
+    
+    class Meta:
+        db_table = 'customer_challan'
+        ordering = ['-customer_challan_date', '-customer_challan_id']
+
+class CustomerChallanMaster(models.Model):
+    customer_challan_master_id = models.BigAutoField(primary_key=True, auto_created=True)
+    customer_challan_id = models.ForeignKey(CustomerChallan, on_delete=models.CASCADE)
+    customer_challan_no = models.CharField(max_length=50)
+    customer_name = models.ForeignKey(CustomerMaster, on_delete=models.CASCADE)
+    product_id = models.ForeignKey(ProductMaster, on_delete=models.CASCADE)
+    product_name = models.CharField(max_length=200)
+    product_company = models.CharField(max_length=200)
+    product_packing = models.CharField(max_length=20)
+    product_batch_no = models.CharField(max_length=20)
+    product_expiry = models.CharField(max_length=7, help_text="Format: MM-YYYY")
+    product_mrp = models.FloatField()
+    sale_rate = models.FloatField()
+    sale_quantity = models.FloatField()
+    sale_discount = models.FloatField(default=0.0)
+    sale_cgst = models.FloatField(default=2.5)
+    sale_sgst = models.FloatField(default=2.5)
+    sale_total_amount = models.FloatField()
+    sales_entry_date = models.DateTimeField(default=timezone.now)
+    rate_applied = models.CharField(max_length=10, blank=True, default='NA')
+    
+    def __str__(self):
+        return f"{self.product_name} - {self.product_batch_no} - {self.sale_quantity}"
+    
+    class Meta:
+        db_table = 'customer_challan_master'
+        ordering = ['-sales_entry_date']
+
+class CustomerChallanMaster2(models.Model):
+    customer_challan_master_id = models.BigAutoField(primary_key=True, auto_created=True)
+    customer_challan_id = models.ForeignKey(CustomerChallan, on_delete=models.CASCADE)
+    customer_challan_no = models.CharField(max_length=50)
+    customer_name = models.ForeignKey(CustomerMaster, on_delete=models.CASCADE)
+    product_id = models.ForeignKey(ProductMaster, on_delete=models.CASCADE)
+    product_name = models.CharField(max_length=200)
+    product_company = models.CharField(max_length=200)
+    product_packing = models.CharField(max_length=20)
+    product_batch_no = models.CharField(max_length=20)
+    product_expiry = models.CharField(max_length=7, help_text="Format: MM-YYYY")
+    product_mrp = models.FloatField()
+    sale_rate = models.FloatField()
+    sale_quantity = models.FloatField()
+    sale_discount = models.FloatField(default=0.0)
+    sale_cgst = models.FloatField(default=2.5)
+    sale_sgst = models.FloatField(default=2.5)
+    sale_total_amount = models.FloatField()
+    sales_entry_date = models.DateTimeField(default=timezone.now)
+    rate_applied = models.CharField(max_length=10, blank=True, default='NA')
+    
+    def __str__(self):
+        return f"{self.product_name} - {self.product_batch_no} - {self.sale_quantity}"
+    
+    class Meta:
+        db_table = 'customer_challan_master2'
+        ordering = ['-sales_entry_date']
 
 
 
+# REMOVED: Sales Challan Invoice functionality
+# class SalesChallanInvoice(models.Model):
+#     sales_challan_invoice_id = models.BigAutoField(primary_key=True, auto_created=True)
+#     invoice_no = models.CharField(max_length=50, unique=True)
+#     invoice_date = models.DateField(default=timezone.now)
+#     customer = models.ForeignKey(CustomerMaster, on_delete=models.CASCADE)
+#     invoice_series = models.ForeignKey(InvoiceSeries, on_delete=models.SET_NULL, null=True, blank=True)
+#     selected_challans = models.JSONField(default=list)  # Store challan IDs
+#     invoice_total = models.FloatField(default=0.0)
+#     invoice_paid = models.FloatField(default=0.0)
+#     created_at = models.DateTimeField(default=timezone.now)
+#     updated_at = models.DateTimeField(auto_now=True)
+#     
+#     def __str__(self):
+#         return f"Sales Challan Invoice #{self.invoice_no} - {self.customer.customer_name}"
+#     
+#     @property
+#     def balance_due(self):
+#         return self.invoice_total - self.invoice_paid
+#     
+#     class Meta:
+#         db_table = 'sales_challan_invoice'
+#         ordering = ['-invoice_date', '-sales_challan_invoice_id']
+
+# class SalesChallanInvoicePaid(models.Model):
+#     payment_id = models.BigAutoField(primary_key=True, auto_created=True)
+#     sales_challan_invoice = models.ForeignKey(SalesChallanInvoice, on_delete=models.CASCADE)
+#     payment_date = models.DateField(default=timezone.now)
+#     payment_amount = models.FloatField()
+#     payment_method = models.CharField(max_length=30, default='Cash')
+#     payment_reference = models.CharField(max_length=30, default='NA')
+#     
+#     def __str__(self):
+#         return f"Payment of ₹{self.payment_amount} for Sales Challan Invoice #{self.sales_challan_invoice.invoice_no}"
+#     
+#     class Meta:
+#         db_table = 'sales_challan_invoice_paid'
+#         ordering = ['-payment_date']
+
+class StockIssueMaster(models.Model):
+    """Model for managing stock issues/adjustments"""
+    ISSUE_TYPES = [
+        ('damage', 'Damage'),
+        ('expiry', 'Expiry'),
+        ('theft', 'Theft'),
+        ('loss', 'Loss'),
+        ('adjustment', 'Stock Adjustment'),
+        ('transfer', 'Transfer Out'),
+        ('sample', 'Sample Given'),
+        ('other', 'Other'),
+    ]
+    
+    issue_id = models.BigAutoField(primary_key=True, auto_created=True)
+    issue_no = models.CharField(max_length=20, unique=True)
+    issue_date = models.DateField(default=timezone.now)
+    issue_type = models.CharField(max_length=20, choices=ISSUE_TYPES)
+    total_value = models.FloatField(default=0.0)
+    remarks = models.TextField(blank=True, null=True)
+    created_by = models.ForeignKey(Web_User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'stock_issue_master'
+        ordering = ['-issue_date', '-issue_id']
+    
+    def __str__(self):
+        return f"Stock Issue #{self.issue_no} - {self.get_issue_type_display()}"
+    
+    def save(self, *args, **kwargs):
+        if not self.issue_no:
+            # Generate issue number
+            last_issue = StockIssueMaster.objects.order_by('-issue_id').first()
+            if last_issue:
+                last_num = int(last_issue.issue_no.split('SI')[-1])
+                self.issue_no = f"SI{last_num + 1:06d}"
+            else:
+                self.issue_no = "SI000001"
+        super().save(*args, **kwargs)
+
+class StockIssueDetail(models.Model):
+    """Detail model for stock issue items"""
+    detail_id = models.BigAutoField(primary_key=True, auto_created=True)
+    issue = models.ForeignKey(StockIssueMaster, on_delete=models.CASCADE, related_name='details')
+    product = models.ForeignKey(ProductMaster, on_delete=models.CASCADE)
+    batch_no = models.CharField(max_length=20)
+    expiry_date = models.CharField(max_length=7, help_text="Format: MM-YYYY")
+    quantity_issued = models.FloatField(validators=[MinValueValidator(0.01)])
+    unit_rate = models.FloatField(default=0.0)
+    total_amount = models.FloatField(default=0.0)
+    remarks = models.TextField(blank=True, null=True)
+    
+    class Meta:
+        db_table = 'stock_issue_detail'
+        ordering = ['detail_id']
+    
+    def __str__(self):
+        return f"{self.product.product_name} - Batch: {self.batch_no} - Qty: {self.quantity_issued}"
+    
+    def save(self, *args, **kwargs):
+        self.total_amount = self.quantity_issued * self.unit_rate
+        super().save(*args, **kwargs)
 

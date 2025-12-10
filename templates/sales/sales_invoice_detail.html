@@ -11,9 +11,11 @@
     <button type="button" class="edit-invoice-action-btn" data-bs-toggle="modal" data-bs-target="#editSalesInvoiceModal">
         <i class="fas fa-edit me-2"></i>Edit Invoice
     </button>
-    <a href="{% url 'print_sales_bill' pk=invoice.sales_invoice_no %}" target="_blank" class="print-bill-action-btn">
-        <i class="fas fa-print me-2"></i>Print Bill
+
+    <a href="{% url 'print_sales_receipt' invoice_id=invoice.sales_invoice_no %}" target="_blank" class="print-receipt-action-btn">
+        <i class="fas fa-print me-2"></i>Print Receipt
     </a>
+
     {% if invoice.balance_due > 0 %}
     <button type="button" onclick="openAddSalesPaymentDialog()" class="add-payment-action-btn">
         <i class="fas fa-money-bill-wave me-2"></i>Add Payment
@@ -151,7 +153,7 @@
     <div class="products-section">
         <div class="products-card">
             <div class="products-header">
-                <h5 class="products-title">Products</h5>
+                <h5 class="products-title">Invoice Products</h5>
 
             </div>
             <div class="products-body">
@@ -166,7 +168,8 @@
                                 <th class="rate-header">Rate</th>
                                 <th class="quantity-header">Qty</th>
                                 <th class="discount-header">Discount</th>
-                                <th class="gst-header">GST %</th>
+                                <th class="cgst-header">CGST %</th>
+                                <th class="sgst-header">SGST %</th>
                                 <th class="total-header">Total</th>
                                 <th class="actions-header">Actions</th>
                             </tr>
@@ -192,7 +195,8 @@
                                         {{ sale.sale_discount }}%
                                     {% endif %}
                                 </td>
-                                <td class="gst-cell">{{ sale.sale_igst }}%</td>
+                                <td class="cgst-cell">{{ sale.sale_cgst }}%</td>
+                                <td class="sgst-cell">{{ sale.sale_sgst }}%</td>
                                 <td class="total-cell">{{ sale.sale_total_amount|currency }}</td>
                                 <td class="actions-cell">
                                     <div class="product-actions">
@@ -204,21 +208,81 @@
                             </tr>
                             {% empty %}
                             <tr class="no-products-row">
-                                <td colspan="10" class="no-products-cell">No products added to this invoice</td>
+                                <td colspan="11" class="no-products-cell">No products added to this invoice</td>
                             </tr>
                             {% endfor %}
                         </tbody>
                         <tfoot class="products-table-footer">
-                            <tr class="total-row">
-                                <td colspan="9" class="total-label-cell"><strong>Total:</strong></td>
-                                <td class="total-value-cell">{{ invoice.sales_invoice_total|currency }}</td>
+                            {% if invoice.sales_transport_charges > 0 %}
+                            <tr>
+                                <td colspan="10" style="text-align: right; font-weight: 600;">Subtotal:</td>
+                                <td style="font-weight: 600;">{{ products_total|currency }}</td>
                             </tr>
+                            <tr>
+                                <td colspan="10" style="text-align: right; font-weight: 600;">Transport Charges:</td>
+                                <td style="font-weight: 600;">{{ invoice.sales_transport_charges|currency }}</td>
+                            </tr>
+                            <tr class="total-row" style="background: #f8f9fa;">
+                                <td colspan="10" class="total-label-cell" style="font-weight: 700; font-size: 16px;"><strong>Grand Total:</strong></td>
+                                <td class="total-value-cell" style="font-weight: 700; font-size: 16px;">{{ invoice.sales_invoice_total|currency }}</td>
+                            </tr>
+                            {% else %}
+                            <tr class="total-row" style="background: #f8f9fa;">
+                                <td colspan="10" class="total-label-cell" style="font-weight: 700; font-size: 16px;"><strong>Grand Total:</strong></td>
+                                <td class="total-value-cell" style="font-weight: 700; font-size: 16px;">{{ invoice.sales_invoice_total|currency }}</td>
+                            </tr>
+                            {% endif %}
                         </tfoot>
                     </table>
                 </div>
             </div>
         </div>
     </div>
+    
+    {% if challan_products %}
+    <div class="challan-products-section">
+        <div class="challan-products-card">
+            <div class="challan-products-header">
+                <h5 class="challan-products-title">Challan Products</h5>
+            </div>
+            <div class="challan-products-body">
+                <div class="challan-products-table-wrapper">
+                    <table class="challan-products-table">
+                        <thead class="challan-products-table-header">
+                            <tr class="challan-products-header-row">
+                                <th class="challan-product-name-header">Product</th>
+                                <th class="challan-batch-no-header">Batch No</th>
+                                <th class="challan-expiry-header">Expiry</th>
+                                <th class="challan-rate-header">Rate</th>
+                                <th class="challan-quantity-header">Qty</th>
+                                <th class="challan-total-header">Total</th>
+                                <th class="challan-date-header">Date</th>
+                            </tr>
+                        </thead>
+                        <tbody class="challan-products-table-body">
+                            {% for challan in challan_products %}
+                            <tr class="challan-product-row">
+                                <td class="challan-product-name-cell">
+                                    <a href="{% url 'product_detail' pk=challan.product_id.productid %}" class="challan-product-detail-link">
+                                        {{ challan.product_name }}
+                                    </a>
+                                    <div class="challan-product-company-info">{{ challan.product_company }} - {{ challan.product_packing }}</div>
+                                </td>
+                                <td class="challan-batch-no-cell">{{ challan.product_batch_no }}</td>
+                                <td class="challan-expiry-cell">{{ challan.product_expiry }}</td>
+                                <td class="challan-rate-cell">{{ challan.sale_rate|currency }}</td>
+                                <td class="challan-quantity-cell">{{ challan.sale_quantity|floatformat:2 }}</td>
+                                <td class="challan-total-cell">{{ challan.sale_total_amount|currency }}</td>
+                                <td class="challan-date-cell">{{ challan.sales_entry_date|date:"d/m/Y" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <!-- Edit Sales Invoice Modal -->
@@ -275,7 +339,8 @@
                                         <th>Rate</th>
                                         <th>Qty</th>
                                         <th>Discount</th>
-                                        <th>GST %</th>
+                                        <th>CGST %</th>
+                                        <th>SGST %</th>
                                         <th>Total</th>
                                         <th>Action</th>
                                     </tr>
@@ -307,7 +372,8 @@
                                             <div class="stock-error" style="display: none; color: #dc3545; font-size: 0.75rem; margin-top: 4px;"></div>
                                         </td>
                                         <td><input type="number" class="form-control discount" name="discount" value="{{ sale.sale_discount }}" step="0.01" min="0"></td>
-                                        <td><input type="number" class="form-control igst" name="igst" value="{{ sale.sale_igst }}" step="0.01" min="0"></td>
+                                        <td><input type="number" class="form-control cgst" name="cgst" value="{{ sale.sale_cgst }}" step="0.01" min="0"></td>
+                                        <td><input type="number" class="form-control sgst" name="sgst" value="{{ sale.sale_sgst }}" step="0.01" min="0"></td>
                                         <td><input type="number" class="form-control total" name="total" value="{{ sale.sale_total_amount }}" readonly></td>
                                         <td><button type="button" class="btn btn-danger btn-sm remove-product"><i class="fas fa-trash"></i></button></td>
                                     </tr>
@@ -512,7 +578,8 @@ document.getElementById('addEditProductRow').addEventListener('click', function(
             <div class="stock-error" style="display: none; color: #dc3545; font-size: 0.75rem; margin-top: 4px;"></div>
         </td>
         <td><input type="number" class="form-control discount" name="discount" step="0.01" min="0" value="0"></td>
-        <td><input type="number" class="form-control igst" name="igst" step="0.01" min="0" value="12"></td>
+        <td><input type="number" class="form-control cgst" name="cgst" step="0.01" min="0" value="2.5"></td>
+        <td><input type="number" class="form-control sgst" name="sgst" step="0.01" min="0" value="2.5"></td>
         <td><input type="number" class="form-control total" name="total" readonly></td>
         <td><button type="button" class="btn btn-danger btn-sm remove-product"><i class="fas fa-trash"></i></button></td>
     `;
@@ -548,11 +615,12 @@ function addEditRowEventListeners(row) {
     const quantityInput = row.querySelector('.quantity');
     const rateInput = row.querySelector('.rate');
     const discountInput = row.querySelector('.discount');
-    const igstInput = row.querySelector('.igst');
+    const cgstInput = row.querySelector('.cgst');
+    const sgstInput = row.querySelector('.sgst');
     const batchInput = row.querySelector('.batch-no');
     
     // Add calculation listeners
-    [rateInput, discountInput, igstInput].forEach(input => {
+    [rateInput, discountInput, cgstInput, sgstInput].forEach(input => {
         if (input) {
             input.addEventListener('input', function() {
                 calculateEditRowTotal(row);
@@ -644,7 +712,8 @@ function fillEditBatchDetails(data, rowIndex) {
     
     row.querySelector('.quantity').value = '1';
     row.querySelector('.discount').value = '0';
-    row.querySelector('.igst').value = '12';
+    row.querySelector('.cgst').value = '2.5';
+    row.querySelector('.sgst').value = '2.5';
     
     // Set rate based on customer type with proper fallback
     let selectedRate = data.mrp || 0;
@@ -695,11 +764,12 @@ function calculateEditRowTotal(row) {
     const quantity = parseFloat(row.querySelector('.quantity').value) || 0;
     const rate = parseFloat(row.querySelector('.rate').value) || 0;
     const discount = parseFloat(row.querySelector('.discount').value) || 0;
-    const igst = parseFloat(row.querySelector('.igst').value) || 0;
+    const cgst = parseFloat(row.querySelector('.cgst').value) || 0;
+    const sgst = parseFloat(row.querySelector('.sgst').value) || 0;
     
     const basePrice = quantity * rate;
     const discountedAmount = basePrice - discount; // Assuming flat discount
-    const total = discountedAmount * (1 + (igst / 100));
+    const total = discountedAmount * (1 + ((cgst + sgst) / 100));
     
     row.querySelector('.total').value = total.toFixed(2);
 }
@@ -758,7 +828,8 @@ document.getElementById('saveEditSalesInvoice').addEventListener('click', functi
                 sale_rate: row.querySelector('.rate').value,
                 quantity: quantityInput.value,
                 discount: row.querySelector('.discount').value,
-                igst: row.querySelector('.igst').value,
+                cgst: row.querySelector('.cgst').value,
+                sgst: row.querySelector('.sgst').value,
                 calculation_mode: 'flat',
                 rate_applied: selectedEditCustomerRateType
             });
@@ -880,68 +951,10 @@ function loadEditProductDetails(productSelect, rowIndex) {
     
     console.log(`🔄 Loading edit product details for row ${rowIndex}, customer rate type: ${selectedEditCustomerRateType}`);
     
-    fetch(`/api/product-batch-selector/?product_id=${productSelect.value}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success && data.batches.length > 0) {
-                const row = document.getElementById(`editProductRow_${rowIndex}`);
-                const firstBatch = data.batches[0];
-                
-                // Auto-fill fields
-                row.querySelector('.batch-no').value = firstBatch.batch_no;
-                row.querySelector('.expiry').value = firstBatch.expiry;
-                row.querySelector('.mrp').value = firstBatch.mrp;
-                
-                // Set rate based on customer type with proper fallback
-                let selectedRate = firstBatch.mrp; // Default fallback
-                let rateSource = 'MRP (Fallback)';
-                
-                if (firstBatch.rates) {
-                    if (selectedEditCustomerRateType === 'A' && firstBatch.rates.rate_A > 0) {
-                        selectedRate = firstBatch.rates.rate_A;
-                        rateSource = 'Rate A';
-                    } else if (selectedEditCustomerRateType === 'B' && firstBatch.rates.rate_B > 0) {
-                        selectedRate = firstBatch.rates.rate_B;
-                        rateSource = 'Rate B';
-                    } else if (selectedEditCustomerRateType === 'C' && firstBatch.rates.rate_C > 0) {
-                        selectedRate = firstBatch.rates.rate_C;
-                        rateSource = 'Rate C';
-                    }
-                }
-                
-                console.log(`💰 Edit Rate Applied: ${rateSource} = ₹${selectedRate}`);
-                
-                row.querySelector('.rate').value = selectedRate;
-                row.querySelector('.quantity').value = '1';
-                row.querySelector('.discount').value = '0';
-                row.querySelector('.igst').value = '12';
-                
-                // Show enhanced stock info with rate source
-                const stockInfo = document.createElement('small');
-                stockInfo.className = 'text-success stock-info';
-                stockInfo.innerHTML = `<i class="fas fa-info-circle"></i> Stock: ${firstBatch.stock} | Applied: ${rateSource} = ₹${selectedRate}`;
-                
-                const existingInfo = row.querySelector('.stock-info');
-                if (existingInfo) existingInfo.remove();
-                
-                row.querySelector('.quantity').parentNode.appendChild(stockInfo);
-                
-                calculateEditRowTotal(row);
-                
-                // Focus on quantity field
-                setTimeout(() => {
-                    const quantityField = row.querySelector('.quantity');
-                    if (quantityField) {
-                        quantityField.focus();
-                        quantityField.select();
-                    }
-                    validateEditStockAndCalculate(rowIndex);
-                }, 200);
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching product batches:', error);
-        });
+    // Auto-open batch selector after product selection
+    setTimeout(() => {
+        showEditBatchSelectionDialog(productSelect.value, rowIndex);
+    }, 300);
 }
 
 // Comprehensive stock validation for edit modal - exact copy from combined invoice
@@ -1189,37 +1202,43 @@ function editQuickSearchProducts(event) {
         company: '{{ product.product_company|escapejs }}'
     },{% endfor %}];
     
-    // Smart case-sensitive search with priority
+    // Filter products that START with the search term (first 2+ letters)
     const filtered = products.filter(p => {
-        // Check if search term matches case-sensitively
-        const nameMatch = p.name.includes(originalSearchTerm) || p.name.toLowerCase().includes(searchTerm);
-        const companyMatch = p.company.includes(originalSearchTerm) || p.company.toLowerCase().includes(searchTerm);
-        return nameMatch || companyMatch;
+        // Primary filter: starts with search term (case-sensitive first, then case-insensitive)
+        const exactStartsName = p.name.startsWith(originalSearchTerm);
+        const exactStartsCompany = p.company.startsWith(originalSearchTerm);
+        const startsName = p.name.toLowerCase().startsWith(searchTerm);
+        const startsCompany = p.company.toLowerCase().startsWith(searchTerm);
+        
+        return exactStartsName || exactStartsCompany || startsName || startsCompany;
     }).sort((a, b) => {
-        // Priority scoring for better matches
-        const aExactName = a.name.includes(originalSearchTerm) ? 100 : 0;
-        const aExactCompany = a.company.includes(originalSearchTerm) ? 80 : 0;
-        const aLowerName = a.name.toLowerCase().includes(searchTerm) ? 60 : 0;
-        const aLowerCompany = a.company.toLowerCase().includes(searchTerm) ? 40 : 0;
-        const aStartsName = a.name.toLowerCase().startsWith(searchTerm) ? 20 : 0;
-        const aStartsCompany = a.company.toLowerCase().startsWith(searchTerm) ? 10 : 0;
+        // Priority scoring for "starts with" matches
+        let aScore = 0;
+        let bScore = 0;
         
-        const bExactName = b.name.includes(originalSearchTerm) ? 100 : 0;
-        const bExactCompany = b.company.includes(originalSearchTerm) ? 80 : 0;
-        const bLowerName = b.name.toLowerCase().includes(searchTerm) ? 60 : 0;
-        const bLowerCompany = b.company.toLowerCase().includes(searchTerm) ? 40 : 0;
-        const bStartsName = b.name.toLowerCase().startsWith(searchTerm) ? 20 : 0;
-        const bStartsCompany = b.company.toLowerCase().startsWith(searchTerm) ? 10 : 0;
+        // Exact case "starts with" gets highest priority (100 points)
+        if (a.name.startsWith(originalSearchTerm)) aScore += 100;
+        if (a.company.startsWith(originalSearchTerm)) aScore += 90;
+        if (b.name.startsWith(originalSearchTerm)) bScore += 100;
+        if (b.company.startsWith(originalSearchTerm)) bScore += 90;
         
-        const aScore = aExactName + aExactCompany + aLowerName + aLowerCompany + aStartsName + aStartsCompany;
-        const bScore = bExactName + bExactCompany + bLowerName + bLowerCompany + bStartsName + bStartsCompany;
+        // Case-insensitive "starts with" gets medium priority (50 points)
+        if (a.name.toLowerCase().startsWith(searchTerm)) aScore += 50;
+        if (a.company.toLowerCase().startsWith(searchTerm)) aScore += 40;
+        if (b.name.toLowerCase().startsWith(searchTerm)) bScore += 50;
+        if (b.company.toLowerCase().startsWith(searchTerm)) bScore += 40;
         
-        if (aScore !== bScore) return bScore - aScore;
+        // Sort by score (higher score first)
+        if (aScore !== bScore) {
+            return bScore - aScore;
+        }
+        
+        // If scores are equal, sort alphabetically
         return a.name.localeCompare(b.name);
-    }).slice(0, 8);
+    });
     
     if (filtered.length === 0) {
-        resultsDiv.innerHTML = '<div class="no-results">No products found</div>';
+        resultsDiv.innerHTML = '<div class="no-results">No products starting with "' + originalSearchTerm + '" found</div>';
         return;
     }
     
@@ -1297,23 +1316,6 @@ function fillEditProductInRow(row, productId) {
         if (rowIndex) {
             loadEditProductDetails(productSelect, rowIndex);
         }
-        
-        // Focus on batch field after product details are loaded
-        setTimeout(() => {
-            const batchField = row.querySelector('.batch-no');
-            if (batchField) {
-                batchField.focus();
-                batchField.select();
-                
-                // Add visual indicator
-                batchField.style.backgroundColor = '#d4edda';
-                batchField.style.borderColor = '#28a745';
-                setTimeout(() => {
-                    batchField.style.backgroundColor = '';
-                    batchField.style.borderColor = '';
-                }, 2000);
-            }
-        }, 600);
     }
 }
 
@@ -1527,7 +1529,8 @@ function selectEditBatch(batchNo, rowIndex, batchData) {
         row.querySelector('.rate').value = selectedRate;
         row.querySelector('.quantity').value = '1';
         row.querySelector('.discount').value = '0';
-        row.querySelector('.igst').value = '12';
+        row.querySelector('.cgst').value = '2.5';
+        row.querySelector('.sgst').value = '2.5';
         
         calculateEditRowTotal(row);
         
@@ -1616,8 +1619,9 @@ function hideEditCustomerRateInfo() {
     selectedEditCustomerRateType = 'A'; // Reset to default
 }
 
-// Keyboard shortcut Ctrl+E for edit
+// Keyboard shortcuts
 document.addEventListener('keydown', function(e) {
+    // Ctrl+E for edit
     if (e.ctrlKey && e.key === 'e') {
         e.preventDefault();
         document.getElementById('editSalesInvoiceModal').style.display = 'block';
@@ -1629,6 +1633,8 @@ document.addEventListener('keydown', function(e) {
             }
         }, 300);
     }
+    
+
 });
 </script>
 <script>
@@ -1686,5 +1692,36 @@ function closeDeleteSaleDialog() {
     if (dialog) dialog.remove();
     deleteSaleId = null;
 }
+
+// Ctrl+P shortcut for print receipt
+document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.key === 'p') {
+        e.preventDefault();
+        window.open('{% url "print_sales_receipt" invoice.sales_invoice_no %}', '_blank');
+    }
+});
 </script>
+<div style="position: fixed; bottom: 0; left: 0; right: 0; background: #1f2937; color: #d1d5db; padding: 10px 20px; font-size: 0.8rem; display: flex; justify-content: center; gap: 30px; z-index: 100; box-shadow: 0 -2px 10px rgba(0,0,0,0.1);">
+    <div style="display: flex; align-items: center; gap: 5px;">
+        <span style="background: #374151; padding: 2px 6px; border-radius: 3px; font-weight: 600; font-size: 0.7rem;">Ctrl+P</span>
+        <span>Print Receipt</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 5px;">
+        <span style="background: #374151; padding: 2px 6px; border-radius: 3px; font-weight: 600; font-size: 0.7rem;">Ctrl+E</span>
+        <span>Edit Invoice</span>
+    </div>
+
+    <!-- <div style="display: flex; align-items: center; gap: 5px;">
+        <span style="background: #374151; padding: 2px 6px; border-radius: 3px; font-weight: 600; font-size: 0.7rem;">Alt+W</span>
+        <span>Batch Selector</span>
+    </div> -->
+    <!-- <div style="display: flex; align-items: center; gap: 5px;">
+        <span style="background: #374151; padding: 2px 6px; border-radius: 3px; font-weight: 600; font-size: 0.7rem;">Ctrl+S</span>
+        <span>Save Invoice</span>
+    </div> -->
+    <!-- <div style="display: flex; align-items: center; gap: 5px;">
+        <span style="background: #374151; padding: 2px 6px; border-radius: 3px; font-weight: 600; font-size: 0.7rem;">Ctrl+D</span>
+        <span>Duplicate Row</span>
+    </div> -->
+</div>
 {% endblock %}

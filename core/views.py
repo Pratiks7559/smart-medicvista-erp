@@ -18,8 +18,10 @@ from .models import (
     InvoiceMaster, InvoicePaid, PurchaseMaster, SalesInvoiceMaster, SalesMaster,
     SalesInvoicePaid, ProductRateMaster, ReturnInvoiceMaster, PurchaseReturnInvoicePaid,
     ReturnPurchaseMaster, ReturnSalesInvoiceMaster, ReturnSalesInvoicePaid, ReturnSalesMaster,
-    SaleRateMaster, PaymentMaster, ReceiptMaster
+    SaleRateMaster, InvoiceSeries
 )
+
+
 from .forms import (
     LoginForm, UserRegistrationForm, UserUpdateForm, PharmacyDetailsForm, ProductForm,
     SupplierForm, CustomerForm, InvoiceForm, InvoicePaymentForm, PurchaseForm,
@@ -27,9 +29,11 @@ from .forms import (
     PurchaseReturnInvoiceForm, PurchaseReturnForm, SalesReturnInvoiceForm, SalesReturnForm,
     SaleRateForm, SalesReturnPaymentForm, PaymentForm, ReceiptForm
 )
+from .unified_payment_view import add_unified_payment, search_supplier_invoices, search_customer_invoices
 from .utils import get_stock_status, get_batch_stock_status, generate_invoice_pdf, generate_sales_invoice_pdf, get_avg_mrp, parse_expiry_date, generate_sales_invoice_number
 from .date_utils import parse_ddmmyyyy_date, format_date_for_display, format_date_for_backend, convert_legacy_dates
 from .low_stock_views import low_stock_update, update_low_stock_item, bulk_update_low_stock
+
 # Authentication views
 def login_view(request):
     if request.user.is_authenticated:
@@ -57,8 +61,29 @@ def login_view(request):
     }
     return render(request, 'login.html', context)
 def logout_view(request):
+    if request.method == 'POST':
+        backup_choice = request.POST.get('backup', 'no')
+        if backup_choice == 'yes':
+            from django.http import JsonResponse
+            from .backup_views import create_backup_file
+            backup_path = create_backup_file()
+            return JsonResponse({'success': True, 'backup_url': f'/download-backup-logout/{backup_path}'})
+        logout(request)
+        messages.info(request, "You have successfully logged out.")
+        return redirect('login')
+    return render(request, 'logout_confirm.html')
+
+def download_backup_and_logout(request, filename):
+    from django.http import FileResponse
+    import os
+    filepath = os.path.join('backups', filename)
+    if os.path.exists(filepath):
+        response = FileResponse(open(filepath, 'rb'), as_attachment=True)
+        response['Content-Type'] = 'application/x-sqlite3'
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        logout(request)
+        return response
     logout(request)
-    messages.info(request, "You have successfully logged out.")
     return redirect('login')
 @login_required
 def register_user(request):
@@ -247,6 +272,49 @@ def dashboard(request):
         invoice_date__gte=current_month_start
     ).aggregate(total=Sum('invoice_total'))['total'] or 0
     
+    # Today's sales
+    today_sales_invoices = SalesInvoiceMaster.objects.filter(
+        sales_invoice_date=today
+    )
+    today_sales = SalesMaster.objects.filter(
+        sales_invoice_no__in=today_sales_invoices
+    ).aggregate(total=Sum('sale_total_amount'))['total'] or 0
+    
+    # Today's purchases (cost only, without transport)
+    today_purchases_data = PurchaseMaster.objects.filter(
+        purchase_entry_date=today
+    ).aggregate(
+        total_cost=Sum(F('product_purchase_rate') * F('product_quantity')),
+        total_gst=Sum((F('product_purchase_rate') * F('product_quantity') * (F('CGST') + F('SGST'))) / 100),
+        total_transport=Sum('product_transportation_charges')
+    )
+    today_purchase_cost = (today_purchases_data['total_cost'] or 0) + (today_purchases_data['total_gst'] or 0) + (today_purchases_data['total_transport'] or 0)
+    
+    # Calculate today's profit: Sales MRP - (Purchase Cost + GST + Transport)
+    today_profit = today_sales - today_purchase_cost
+    
+    # Monthly purchases (cost only, without transport)
+    monthly_purchases_data = PurchaseMaster.objects.filter(
+        purchase_entry_date__gte=current_month_start
+    ).aggregate(
+        total_cost=Sum(F('product_purchase_rate') * F('product_quantity')),
+        total_gst=Sum((F('product_purchase_rate') * F('product_quantity') * (F('CGST') + F('SGST'))) / 100),
+        total_transport=Sum('product_transportation_charges')
+    )
+    monthly_purchase_cost = (monthly_purchases_data['total_cost'] or 0) + (monthly_purchases_data['total_gst'] or 0) + (monthly_purchases_data['total_transport'] or 0)
+    
+    # Calculate monthly profit: Sales MRP - (Purchase Cost + GST + Transport)
+    monthly_profit = monthly_sales - monthly_purchase_cost
+    
+    # Keep original purchase totals for display
+    today_purchases = InvoiceMaster.objects.filter(
+        invoice_date=today
+    ).aggregate(total=Sum('invoice_total'))['total'] or 0
+    
+    monthly_purchases = InvoiceMaster.objects.filter(
+        invoice_date__gte=current_month_start
+    ).aggregate(total=Sum('invoice_total'))['total'] or 0
+    
     # Total outstanding payments from customers
     # Calculate total sales amounts
     sales_totals = SalesMaster.objects.values('sales_invoice_no').annotate(
@@ -288,6 +356,10 @@ def dashboard(request):
         'expired_products': expired_products,
         'monthly_sales': monthly_sales,
         'monthly_purchases': monthly_purchases,
+        'today_sales': today_sales,
+        'today_purchases': today_purchases,
+        'today_profit': today_profit,
+        'monthly_profit': monthly_profit,
         'total_receivable': total_receivable,
         'total_payable': total_payable
     }
@@ -329,24 +401,65 @@ def pharmacy_details(request):
 # Product views
 @login_required
 def product_list(request):
-    products = ProductMaster.objects.all().order_by('product_name')
+    # Get sorting parameter (default: productid to show newest last)
+    sort_by = request.GET.get('sort', 'productid')
+    
+    # Define sorting options
+    sort_options = {
+        'name': 'product_name',
+        'company': 'product_company', 
+        'supplier': 'product_company',  # Alias for company
+        'category': 'product_category',
+        'stock': 'productid',  # Will be sorted by stock after processing
+        'productid': 'productid'
+    }
+    
+    order_field = sort_options.get(sort_by, 'productid')
+    products = ProductMaster.objects.all().order_by(order_field)
 
-    # Search functionality
-    search_query = request.GET.get('search', '')
+    # Enhanced search functionality
+    search_query = request.GET.get('search', '').strip()
     if search_query:
-        products = products.filter(
-            Q(product_name__icontains=search_query) | 
-            Q(product_company__icontains=search_query) |
-            Q(product_salt__icontains=search_query) |
-            Q(product_barcode__icontains=search_query)
-        )
+        # Split search query into words for better matching
+        search_words = search_query.split()
+        
+        # Start with all products
+        search_filter = Q()
+        
+        # For each word, create OR conditions across all fields
+        for word in search_words:
+            word_filter = (
+                Q(product_name__icontains=word) |
+                Q(product_company__icontains=word) |
+                Q(product_salt__icontains=word) |
+                Q(product_packing__icontains=word) |
+                Q(product_category__icontains=word) |
+                Q(product_barcode__icontains=word)
+            )
+            search_filter &= word_filter  # AND between words
+        
+        products = products.filter(search_filter)
+        
+        # Sort by relevance: exact matches first, then startswith, then contains
+        products = sorted(products, key=lambda p: (
+            not p.product_name.lower().startswith(search_query.lower()),
+            not search_query.lower() in p.product_name.lower(),
+            p.product_name.lower()
+        ))
+        
+        # Convert back to queryset for pagination
+        product_ids = [p.productid for p in products]
+        products = ProductMaster.objects.filter(productid__in=product_ids)
+        # Preserve the sorted order
+        products = sorted(products, key=lambda p: product_ids.index(p.productid))
     
     # Pagination first to limit the number of products processed
-    paginator = Paginator(products, 50)  # 50 products per page
+    paginator = Paginator(products, 30)  # 30 products per page
     page_number = request.GET.get('page')
     products_page = paginator.get_page(page_number)
     
     # Add stock and batch information to products
+    products_with_stock = []
     for product in products_page:
         try:
             from .utils import get_inventory_batches_info
@@ -379,10 +492,26 @@ def product_list(request):
             product.batches_info = []
             product.avg_mrp = 0
             product.batch_rates = {'rate_A': 0, 'rate_B': 0, 'rate_C': 0}
+        
+        products_with_stock.append(product)
+    
+    # Sort by stock if requested
+    if sort_by == 'stock':
+        products_with_stock.sort(key=lambda p: p.current_stock, reverse=True)
+        # Update the products_page object
+        products_page.object_list = products_with_stock
     
     context = {
         'products': products_page,
         'search_query': search_query,
+        'sort_by': sort_by,
+        'sort_options': [
+            ('productid', 'Product ID'),
+            ('name', 'Product Name'),
+            ('company', 'Company/Supplier'),
+            ('category', 'Category'),
+            ('stock', 'Stock Level')
+        ],
         'title': 'Product List'
     }
     return render(request, 'products/product_list.html', context)
@@ -606,6 +735,28 @@ def supplier_list(request):
     return render(request, 'suppliers/supplier_list.html', context)
 
 @login_required
+def search_suppliers_api(request):
+    """API endpoint for supplier search suggestions"""
+    query = request.GET.get('q', '').strip()
+    
+    if len(query) < 2:
+        return JsonResponse({'suppliers': []})
+    
+    suppliers = SupplierMaster.objects.filter(
+        Q(supplier_name__icontains=query) |
+        Q(supplier_mobile__icontains=query) |
+        Q(supplier_emailid__icontains=query)
+    ).order_by('supplier_name')[:10]
+    
+    supplier_list = [{
+        'id': s.supplierid,
+        'name': s.supplier_name,
+        'contact': s.supplier_mobile or s.supplier_emailid
+    } for s in suppliers]
+    
+    return JsonResponse({'suppliers': supplier_list})
+
+@login_required
 def add_supplier(request):
     if request.method == 'POST':
         # Handle AJAX request
@@ -614,17 +765,18 @@ def add_supplier(request):
                 # Create supplier from POST data
                 supplier = SupplierMaster.objects.create(
                     supplier_name=request.POST.get('supplier_name'),
-                    supplier_type=request.POST.get('supplier_type'),
+                    supplier_type=request.POST.get('supplier_type', ''),
                     supplier_mobile=request.POST.get('supplier_mobile'),
-                    supplier_whatsapp=request.POST.get('supplier_whatsapp'),
-                    supplier_emailid=request.POST.get('supplier_emailid'),
-                    supplier_spoc=request.POST.get('supplier_spoc'),
-                    supplier_address=request.POST.get('supplier_address'),
-                    supplier_dlno=request.POST.get('supplier_dlno'),
-                    supplier_gstno=request.POST.get('supplier_gstno'),
-                    supplier_bank=request.POST.get('supplier_bank'),
-                    supplier_bankaccountno=request.POST.get('supplier_bankaccountno'),
-                    supplier_bankifsc=request.POST.get('supplier_bankifsc'),
+                    supplier_whatsapp=request.POST.get('supplier_whatsapp', ''),
+                    supplier_emailid=request.POST.get('supplier_emailid', ''),
+                    supplier_spoc=request.POST.get('supplier_spoc', ''),
+                    supplier_address=request.POST.get('supplier_address', ''),
+                    supplier_dlno=request.POST.get('supplier_dlno', ''),
+                    supplier_gstno=request.POST.get('supplier_gstno', ''),
+                    supplier_bank=request.POST.get('supplier_bank', ''),
+                    supplier_branch=request.POST.get('supplier_branch', ''),
+                    supplier_bankaccountno=request.POST.get('supplier_bankaccountno', ''),
+                    supplier_bankifsc=request.POST.get('supplier_bankifsc', ''),
                     supplier_upi=request.POST.get('supplier_upi', '')
                 )
                 
@@ -749,6 +901,29 @@ def customer_list(request):
     return render(request, 'customers/customer_list.html', context)
 
 @login_required
+def search_customers_api(request):
+    """API endpoint for customer search suggestions"""
+    query = request.GET.get('q', '').strip()
+    
+    if len(query) < 2:
+        return JsonResponse({'customers': []})
+    
+    customers = CustomerMaster.objects.filter(
+        Q(customer_name__icontains=query) |
+        Q(customer_mobile__icontains=query) |
+        Q(customer_emailid__icontains=query)
+    ).order_by('customer_name')[:10]
+    
+    customer_list = [{
+        'id': c.customerid,
+        'name': c.customer_name,
+        'contact': c.customer_mobile or c.customer_emailid,
+        'type': c.customer_type
+    } for c in customers]
+    
+    return JsonResponse({'customers': customer_list})
+
+@login_required
 def add_customer(request):
     if request.method == 'POST':
         # Handle AJAX request
@@ -766,11 +941,7 @@ def add_customer(request):
                     customer_dlno=request.POST.get('customer_dlno'),
                     customer_gstno=request.POST.get('customer_gstno'),
                     customer_food_license_no=request.POST.get('customer_food_license_no'),
-                    customer_credit_days=int(request.POST.get('customer_credit_days', 0)),
-                    customer_bank=request.POST.get('customer_bank'),
-                    customer_bankaccountno=request.POST.get('customer_bankaccountno'),
-                    customer_bankifsc=request.POST.get('customer_bankifsc'),
-                    customer_upi=request.POST.get('customer_upi', '')
+                    customer_credit_days=int(request.POST.get('customer_credit_days', 0))
                 )
                 
                 return JsonResponse({
@@ -989,7 +1160,8 @@ def edit_invoice(request, pk):
                             product_quantity=float(product_data.get('quantity', 0)),
                             product_scheme=float(product_data.get('scheme', 0)),
                             product_discount_got=float(product_data.get('discount', 0)),
-                            IGST=float(product_data.get('igst', 0)),
+                            CGST=float(product_data.get('cgst', 0)),
+                            SGST=float(product_data.get('sgst', 0)),
                             purchase_calculation_mode=product_data.get('calculation_mode', 'flat'),
                             product_transportation_charges=0
                         )
@@ -1053,17 +1225,39 @@ def invoice_detail(request, pk):
     invoice = get_object_or_404(InvoiceMaster, invoiceid=pk)
     
     # Get all purchases under this invoice
-    purchases = PurchaseMaster.objects.filter(product_invoiceid=pk)
+    purchases = PurchaseMaster.objects.filter(product_invoiceid=pk).select_related('productid')
+    
+    # Add batch-specific rates to each purchase
+    for purchase in purchases:
+        try:
+            batch_rate = SaleRateMaster.objects.get(
+                productid=purchase.productid,
+                product_batch_no=purchase.product_batch_no
+            )
+            purchase.rate_A = batch_rate.rate_A
+            purchase.rate_B = batch_rate.rate_B
+            purchase.rate_C = batch_rate.rate_C
+        except SaleRateMaster.DoesNotExist:
+            purchase.rate_A = 0
+            purchase.rate_B = 0
+            purchase.rate_C = 0
     
     # Calculate the sum of all purchase entries
     purchases_total = purchases.aggregate(Sum('total_amount'))['total_amount__sum'] or 0
     
     # Calculate the difference between invoice total and sum of purchases
-    # Transport charges should NOT be included in the invoice total
-    invoice_pending = invoice.invoice_total - purchases_total
+    # Note: invoice.invoice_total includes transport charges, so we need to add transport charges to purchases_total for comparison
+    purchases_total_with_transport = purchases_total + (invoice.transport_charges or 0)
+    invoice_pending = invoice.invoice_total - purchases_total_with_transport
     
     # Get all payments for this invoice
     payments = InvoicePaid.objects.filter(ip_invoiceid=pk).order_by('-payment_date')
+    
+    # Get challan products for this supplier (if any exist)
+    from .models import SupplierChallanMaster
+    challan_products = SupplierChallanMaster.objects.filter(
+        product_suppliername=invoice.supplierid
+    ).select_related('product_id').order_by('-challan_entry_date')
     
     # Get suppliers and products for modal
     suppliers = SupplierMaster.objects.all().order_by('supplier_name')
@@ -1076,6 +1270,7 @@ def invoice_detail(request, pk):
         'purchases_total': purchases_total,
         'invoice_pending': invoice_pending,
         'has_pending_entries': abs(invoice_pending) > 0.01,  # Using a small threshold to account for floating-point errors
+        'challan_products': challan_products,
         'suppliers': suppliers,
         'products': products,
         'title': f'Purchase Invoice #{invoice.invoice_no}'
@@ -1539,13 +1734,30 @@ def add_invoice_payment(request, invoice_id):
                     payment_ref_no=payment_ref_no
                 )
                 
-                # Update invoice paid amount
+                # Update invoice paid amount and payment status
                 invoice.invoice_paid += payment_amount
+                
+                # Update payment status based on balance
+                balance = invoice.invoice_total - invoice.invoice_paid
+                if balance <= 0.01:
+                    invoice.payment_status = 'paid'
+                elif invoice.invoice_paid > 0:
+                    invoice.payment_status = 'partial'
+                else:
+                    invoice.payment_status = 'pending'
+                
                 invoice.save()
+                
+                # Force refresh of invoice data to ensure all views show updated status
+                invoice.refresh_from_db()
                 
                 return JsonResponse({
                     'success': True,
-                    'message': f'Payment of ₹{payment_amount:.2f} added successfully!'
+                    'message': f'Payment of ₹{payment_amount:.2f} added successfully!',
+                    'new_balance': float(invoice.balance_due),
+                    'new_paid_amount': float(invoice.invoice_paid),
+                    'payment_status': invoice.payment_status,
+                    'invoice_total': float(invoice.invoice_total)
                 })
                 
             except Exception as e:
@@ -1615,8 +1827,18 @@ def edit_invoice_payment(request, invoice_id, payment_id):
             # Update payment
             new_payment.save()
             
-            # Update invoice paid amount
+            # Update invoice paid amount and payment status
             invoice.invoice_paid += difference
+            
+            # Update payment status based on balance
+            balance = invoice.invoice_total - invoice.invoice_paid
+            if balance <= 0.01:
+                invoice.payment_status = 'paid'
+            elif invoice.invoice_paid > 0:
+                invoice.payment_status = 'partial'
+            else:
+                invoice.payment_status = 'pending'
+            
             invoice.save()
             
             messages.success(request, f"Payment updated successfully!")
@@ -1640,12 +1862,25 @@ def delete_invoice_payment(request, invoice_id, payment_id):
     payment = get_object_or_404(InvoicePaid, payment_id=payment_id, ip_invoiceid=invoice_id)
     
     if request.method == 'POST':
-        # Update invoice paid amount
-        invoice.invoice_paid -= payment.payment_amount
-        invoice.save()
-        
-        # Delete payment
+        # Delete payment first
         payment.delete()
+        
+        # Recalculate invoice_paid from remaining payments
+        from django.db.models import Sum
+        remaining_payments = InvoicePaid.objects.filter(ip_invoiceid=invoice)
+        total_paid = remaining_payments.aggregate(Sum('payment_amount'))['payment_amount__sum'] or 0
+        invoice.invoice_paid = total_paid
+        
+        # Update payment status based on balance
+        balance = invoice.invoice_total - invoice.invoice_paid
+        if balance <= 0.01:
+            invoice.payment_status = 'paid'
+        elif invoice.invoice_paid > 0:
+            invoice.payment_status = 'partial'
+        else:
+            invoice.payment_status = 'pending'
+        
+        invoice.save()
         
         messages.success(request, "Payment deleted successfully!")
         return redirect('invoice_detail', pk=invoice_id)
@@ -1670,7 +1905,50 @@ def delete_invoice(request, pk):
     
     if request.method == 'POST':
         try:
+            from .models import SupplierChallanMaster, SupplierChallanMaster2
             invoice_no = invoice.invoice_no
+            
+            # Move challan entries back from SupplierChallanMaster2 to SupplierChallanMaster
+            purchases = PurchaseMaster.objects.filter(product_invoiceid=invoice)
+            moved_back = 0
+            for purchase in purchases:
+                if purchase.source_challan_no:
+                    challan_entries = SupplierChallanMaster2.objects.filter(
+                        product_challan_no=purchase.source_challan_no,
+                        product_id=purchase.productid,
+                        product_batch_no=purchase.product_batch_no
+                    )
+                    for entry in challan_entries:
+                        SupplierChallanMaster.objects.create(
+                            product_suppliername=entry.product_suppliername,
+                            product_challan_id=entry.product_challan_id,
+                            product_challan_no=entry.product_challan_no,
+                            product_id=entry.product_id,
+                            product_name=entry.product_name,
+                            product_company=entry.product_company,
+                            product_packing=entry.product_packing,
+                            product_batch_no=entry.product_batch_no,
+                            product_expiry=entry.product_expiry,
+                            product_mrp=entry.product_mrp,
+                            product_purchase_rate=entry.product_purchase_rate,
+                            product_quantity=entry.product_quantity,
+                            product_scheme=entry.product_scheme,
+                            product_discount=entry.product_discount,
+                            product_transportation_charges=entry.product_transportation_charges,
+                            actual_rate_per_qty=entry.actual_rate_per_qty,
+                            product_actual_rate=entry.product_actual_rate,
+                            total_amount=entry.total_amount,
+                            challan_entry_date=entry.challan_entry_date,
+                            cgst=entry.cgst,
+                            sgst=entry.sgst,
+                            challan_calculation_mode=entry.challan_calculation_mode,
+                            rate_a=entry.rate_a,
+                            rate_b=entry.rate_b,
+                            rate_c=entry.rate_c
+                        )
+                        entry.delete()
+                        moved_back += 1
+            
             invoice.delete()
             
             # Handle AJAX request
@@ -1680,7 +1958,10 @@ def delete_invoice(request, pk):
                     'message': f"Purchase Invoice #{invoice_no} deleted successfully!"
                 })
             
-            messages.success(request, f"Purchase Invoice #{invoice_no} deleted successfully!")
+            msg = f"Purchase Invoice #{invoice_no} deleted successfully!"
+            if moved_back > 0:
+                msg += f" {moved_back} challan entries restored."
+            messages.success(request, msg)
         except Exception as e:
             # Handle AJAX request
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -1724,7 +2005,7 @@ def sales_invoice_list(request):
             messages.error(request, "Invalid date format. Please use YYYY-MM-DD.")
     
     # Pagination
-    paginator = Paginator(invoices, 10)
+    paginator = Paginator(invoices, 15)
     page_number = request.GET.get('page')
     invoices = paginator.get_page(page_number)
     
@@ -1775,6 +2056,10 @@ def sales_invoice_detail(request, pk):
     # Get all sales under this invoice
     sales = SalesMaster.objects.filter(sales_invoice_no=pk)
     
+    # Calculate products total
+    from django.db.models import Sum
+    products_total = sales.aggregate(total=Sum('sale_total_amount'))['total'] or 0
+    
     # Get all payments for this invoice
     payments = SalesInvoicePaid.objects.filter(sales_ip_invoice_no=pk).order_by('-sales_payment_date')
     
@@ -1785,6 +2070,7 @@ def sales_invoice_detail(request, pk):
     context = {
         'invoice': invoice,
         'sales': sales,
+        'products_total': products_total,
         'payments': payments,
         'customers': customers,
         'products': products,
@@ -1792,56 +2078,11 @@ def sales_invoice_detail(request, pk):
     }
     return render(request, 'sales/sales_invoice_detail.html', context)
 
-@login_required
-def print_sales_bill(request, pk):
-    invoice = get_object_or_404(SalesInvoiceMaster, sales_invoice_no=pk)
-    
-    # Get all sales under this invoice
-    sales = SalesMaster.objects.filter(sales_invoice_no=pk)
-    
-    # Get all payments for this invoice
-    payments = SalesInvoicePaid.objects.filter(sales_ip_invoice_no=pk).order_by('-sales_payment_date')
-    
-    # Get pharmacy details for the bill header
-    try:
-        pharmacy = Pharmacy_Details.objects.first()
-    except Pharmacy_Details.DoesNotExist:
-        pharmacy = None
-    
-    # Calculate totals and tax amounts
-    subtotal = 0
-    total_tax = 0
-    
-    for sale in sales:
-        # Base price before tax
-        base_price = sale.sale_rate * sale.sale_quantity
-        
-        # Apply discount
-        if sale.sale_calculation_mode == 'flat':
-            # Flat discount in rupees
-            base_price_after_discount = base_price - sale.sale_discount
-        else:
-            # Percentage discount
-            base_price_after_discount = base_price - (base_price * sale.sale_discount / 100)
-        
-        # Calculate tax amount
-        tax_amount = base_price_after_discount * (sale.sale_igst / 100)
-        
-        subtotal += base_price_after_discount
-        total_tax += tax_amount
-    
-    context = {
-        'invoice': invoice,
-        'sales': sales,
-        'payments': payments,
-        'pharmacy': pharmacy,
-        'subtotal': subtotal,
-        'total_tax': total_tax,
-        'total': invoice.sales_invoice_total,
-        'balance': invoice.balance_due,
-        'title': f'Print Bill: {invoice.sales_invoice_no}'
-    }
-    return render(request, 'sales/print_sales_bill.html', context)
+
+
+
+
+
 
 @login_required
 def add_sale(request, invoice_id):
@@ -2152,14 +2393,15 @@ def edit_sales_invoice(request, pk):
                         # Calculate total amount
                         base_price = float(product_data['sale_rate']) * float(product_data['quantity'])
                         discount = float(product_data.get('discount', 0))
-                        igst = float(product_data.get('igst', 0))
+                        cgst = float(product_data.get('cgst', 0))
+                        sgst = float(product_data.get('sgst', 0))
                         
                         if product_data.get('calculation_mode', 'flat') == 'flat':
                             discounted_amount = base_price - discount
                         else:
                             discounted_amount = base_price * (1 - (discount / 100))
                         
-                        total_amount = discounted_amount * (1 + (igst / 100))
+                        total_amount = discounted_amount * (1 + ((cgst + sgst) / 100))
                         
                         # Keep expiry date in MM-YYYY format for SalesMaster
                         expiry_date = product_data.get('expiry', '')
@@ -2191,8 +2433,9 @@ def edit_sales_invoice(request, pk):
                             sale_scheme=float(product_data.get('scheme', 0)),
                             sale_discount=discount,
                             sale_calculation_mode=product_data.get('calculation_mode', 'flat'),
-                            sale_igst=igst,
-                            rate_applied=product_data.get('rate_applied', 'A'),
+                            sale_cgst=cgst,
+                            sale_sgst=sgst,
+                            rate_applied=product_data.get('rate_applied', rate_letter),
                             sale_total_amount=total_amount
                         )
                         sale.save()
@@ -2235,8 +2478,47 @@ def delete_sales_invoice(request, pk):
         print(f"Invoice PK: {pk}")
         
         try:
+            from .models import CustomerChallanMaster, CustomerChallanMaster2
+            
+            # Move challan entries back from CustomerChallanMaster2 to CustomerChallanMaster
+            sales = SalesMaster.objects.filter(sales_invoice_no=invoice)
+            moved_back = 0
+            for sale in sales:
+                if sale.source_challan_no:
+                    challan_entries = CustomerChallanMaster2.objects.filter(
+                        customer_challan_no=sale.source_challan_no,
+                        product_id=sale.productid,
+                        product_batch_no=sale.product_batch_no
+                    )
+                    for entry in challan_entries:
+                        CustomerChallanMaster.objects.create(
+                            customer_challan_id=entry.customer_challan_id,
+                            customer_challan_no=entry.customer_challan_no,
+                            customer_name=entry.customer_name,
+                            product_id=entry.product_id,
+                            product_name=entry.product_name,
+                            product_company=entry.product_company,
+                            product_packing=entry.product_packing,
+                            product_batch_no=entry.product_batch_no,
+                            product_expiry=entry.product_expiry,
+                            product_mrp=entry.product_mrp,
+                            sale_rate=entry.sale_rate,
+                            sale_quantity=entry.sale_quantity,
+                            sale_discount=entry.sale_discount,
+                            sale_cgst=entry.sale_cgst,
+                            sale_sgst=entry.sale_sgst,
+                            sale_total_amount=entry.sale_total_amount,
+                            sales_entry_date=entry.sales_entry_date,
+                            rate_applied=entry.rate_applied
+                        )
+                        entry.delete()
+                        moved_back += 1
+            
             invoice.delete()
-            messages.success(request, f"Sales Invoice #{invoice_no} deleted successfully!")
+            msg = f"Sales Invoice #{invoice_no} deleted successfully!"
+            if moved_back > 0:
+                msg += f" {moved_back} challan entries restored."
+            messages.success(request, msg)
         except Exception as e:
             messages.error(request, f"Cannot delete invoice. Error: {str(e)}")
         return redirect('sales_invoice_list')
@@ -2336,7 +2618,16 @@ def add_sales_invoice_with_products(request):
             if invoice_form.is_valid():
                 # Create sales invoice
                 invoice = invoice_form.save(commit=False)
-                invoice.sales_invoice_no = generate_sales_invoice_number()
+                # Get series from form data
+                series_id = request.POST.get('invoice_series')
+                invoice.sales_invoice_no = generate_sales_invoice_number(series_id)
+                
+                # Set series if provided
+                if series_id:
+                    try:
+                        invoice.invoice_series = InvoiceSeries.objects.get(series_id=series_id)
+                    except InvoiceSeries.DoesNotExist:
+                        pass
                 invoice.sales_invoice_paid = 0
                 
                 # Convert date format if needed
@@ -2349,6 +2640,11 @@ def add_sales_invoice_with_products(request):
                 
                 invoice.save()
                 print("Invoice saved successfully!")
+                
+                # Extract customer rate type for rate_applied
+                customer_rate_type = invoice.customerid.customer_type  # 'TYPE-A', 'TYPE-B', or 'TYPE-C'
+                rate_letter = customer_rate_type.split('-')[1] if '-' in customer_rate_type else 'A'
+                print(f"Customer rate type: {customer_rate_type}, Rate letter: {rate_letter}")
                 
                 # Process products data
                 products_data = request.POST.get('products_data')
@@ -2380,30 +2676,40 @@ def add_sales_invoice_with_products(request):
                                 messages.error(request, error_msg)
                                 continue
                             
-                            # Check stock availability
-                            batch_quantity, is_available = get_batch_stock_status(
-                                product.productid, product_data['batch_no']
-                            )
+                            # Skip stock validation for challan products
+                            is_challan_product = product_data.get('source_challan_no') is not None
                             
-                            sale_quantity = float(product_data['quantity'])
-                            print(f"Stock check - Available: {batch_quantity}, Required: {sale_quantity}")
-                            
-                            if not is_available:
-                                error_msg = f"Product {product.product_name} batch {product_data['batch_no']} is out of stock."
-                                print(error_msg)
-                                messages.error(request, error_msg)
-                                continue
-                            
-                            if batch_quantity < sale_quantity:
-                                error_msg = f"Insufficient stock for {product.product_name} batch {product_data['batch_no']}. Available: {batch_quantity}, Required: {sale_quantity}"
-                                print(error_msg)
-                                messages.error(request, error_msg)
-                                continue
+                            if not is_challan_product:
+                                # Check stock availability only for non-challan products
+                                batch_quantity, is_available = get_batch_stock_status(
+                                    product.productid, product_data['batch_no']
+                                )
+                                
+                                sale_quantity = float(product_data['quantity'])
+                                print(f"Stock check - Available: {batch_quantity}, Required: {sale_quantity}")
+                                
+                                if not is_available:
+                                    error_msg = f"Product {product.product_name} batch {product_data['batch_no']} is out of stock."
+                                    print(error_msg)
+                                    messages.error(request, error_msg)
+                                    continue
+                                
+                                if batch_quantity < sale_quantity:
+                                    error_msg = f"Insufficient stock for {product.product_name} batch {product_data['batch_no']}. Available: {batch_quantity}, Required: {sale_quantity}"
+                                    print(error_msg)
+                                    messages.error(request, error_msg)
+                                    continue
+                            else:
+                                print(f"✅ Skipping stock validation for challan product: {product.product_name}")
+                                sale_quantity = float(product_data['quantity'])
                             
                             # Calculate total amount
-                            base_price = float(product_data['sale_rate']) * sale_quantity
+                            sale_rate = float(product_data.get('sale_rate', 0))
+                            base_price = sale_rate * sale_quantity
                             discount = float(product_data.get('discount', 0))
-                            igst = float(product_data.get('igst', 0))
+                            cgst = float(product_data.get('cgst', 0))
+                            sgst = float(product_data.get('sgst', 0))
+                            igst = cgst + sgst
                             
                             if product_data.get('calculation_mode', 'flat') == 'flat':
                                 discounted_amount = base_price - discount
@@ -2451,9 +2757,12 @@ def add_sales_invoice_with_products(request):
                                 sale_scheme=float(product_data.get('scheme', 0)),
                                 sale_discount=discount,
                                 sale_calculation_mode=product_data.get('calculation_mode', 'flat'),
-                                sale_igst=igst,
-                                rate_applied=product_data.get('rate_applied', 'A'),
-                                sale_total_amount=total_amount
+                                sale_cgst=cgst,
+                                sale_sgst=sgst,
+                                rate_applied=product_data.get('rate_applied', rate_letter),
+                                sale_total_amount=total_amount,
+                                source_challan_no=product_data.get('source_challan_no'),
+                                source_challan_date=product_data.get('source_challan_date')
                             )
                             
                             sales_to_create.append(sale_obj)
@@ -2478,12 +2787,61 @@ def add_sales_invoice_with_products(request):
                         messages.error(request, error_msg)
                         return redirect('add_sales_invoice_with_products')
                 else:
-                    print("No products data received")
-                    messages.warning(request, "No products were added to the invoice.")
+                    print("No products data received - creating header-only invoice")
+                    messages.info(request, "📄 Sales Invoice created without products. You can add products later by editing the invoice.")
                 
-                success_msg = f"Sales Invoice #{invoice.sales_invoice_no} with {sales_created_count} products added successfully!"
+                # Success message based on whether products were added
+                if sales_created_count > 0:
+                    success_msg = f"Sales Invoice #{invoice.sales_invoice_no} with {sales_created_count} products added successfully!"
+                else:
+                    success_msg = f"Sales Invoice #{invoice.sales_invoice_no} created successfully (header only)!"
+                
                 print(success_msg)
+                
+                # Move challan entries to CustomerChallanMaster2 if pulled from challan
+                from .models import CustomerChallanMaster, CustomerChallanMaster2
+                moved_count = 0
+                if products_data:
+                    try:
+                        for product_data in products:
+                            challan_no = product_data.get('source_challan_no')
+                            if challan_no and str(challan_no).strip():
+                                challan_entries = CustomerChallanMaster.objects.filter(
+                                    customer_challan_no=str(challan_no).strip(),
+                                    product_id=product_data.get('productid'),
+                                    product_batch_no=product_data.get('batch_no', '').strip()
+                                )
+                                for entry in challan_entries:
+                                    CustomerChallanMaster2.objects.create(
+                                        customer_challan_id=entry.customer_challan_id,
+                                        customer_challan_no=entry.customer_challan_no,
+                                        customer_name=entry.customer_name,
+                                        product_id=entry.product_id,
+                                        product_name=entry.product_name,
+                                        product_company=entry.product_company,
+                                        product_packing=entry.product_packing,
+                                        product_batch_no=entry.product_batch_no,
+                                        product_expiry=entry.product_expiry,
+                                        product_mrp=entry.product_mrp,
+                                        sale_rate=entry.sale_rate,
+                                        sale_quantity=entry.sale_quantity,
+                                        sale_discount=entry.sale_discount,
+                                        sale_cgst=entry.sale_cgst,
+                                        sale_sgst=entry.sale_sgst,
+                                        sale_total_amount=entry.sale_total_amount,
+                                        sales_entry_date=entry.sales_entry_date,
+                                        rate_applied=entry.rate_applied
+                                    )
+                                    entry.delete()
+                                    moved_count += 1
+                    except Exception as e:
+                        print(f"Error moving customer challan entry: {e}")
+                
+                if moved_count > 0:
+                    print(f"Moved {moved_count} customer challan entries to CustomerChallanMaster2")
+                
                 messages.success(request, success_msg)
+                # Redirect to invoice detail page after creating invoice
                 return redirect('sales_invoice_detail', pk=invoice.sales_invoice_no)
             else:
                 # Form validation failed
@@ -2508,7 +2866,8 @@ def add_sales_invoice_with_products(request):
         'invoice_form': invoice_form,
         'customers': customers,
         'products': products,
-        'preview_invoice_no': generate_sales_invoice_number(),
+        'preview_invoice_no': 'Will be generated based on series selection',
+        'invoice_series': InvoiceSeries.objects.filter(is_active=True).order_by('series_name'),
         'title': 'Add Sales Invoice with Products'
     }
     return render(request, 'sales/combined_sales_invoice_form.html', context)
@@ -2794,12 +3153,12 @@ def add_purchase_return(request):
                                 # Calculate total amount
                                 return_rate = float(product_data.get('return_rate', 0))
                                 return_quantity = float(product_data.get('return_quantity', 0))
-                                scheme = float(product_data.get('scheme', 0))
-                                charges = float(product_data.get('charges', 0))
+                                cgst = float(product_data.get('cgst', 2.5))
+                                sgst = float(product_data.get('sgst', 2.5))
                                 
                                 subtotal = return_rate * return_quantity
-                                after_scheme = subtotal - scheme
-                                total_amount = after_scheme + charges
+                                gst_amount = subtotal * (cgst + sgst) / 100
+                                total_amount = subtotal + gst_amount
                                 
                                 # Create return item
                                 return_item = ReturnPurchaseMaster.objects.create(
@@ -2811,8 +3170,8 @@ def add_purchase_return(request):
                                     returnproduct_MRP=float(product_data.get('mrp', 0)),
                                     returnproduct_purchase_rate=return_rate,
                                     returnproduct_quantity=return_quantity,
-                                    returnproduct_scheme=scheme,
-                                    returnproduct_charges=charges,
+                                    returnproduct_cgst=cgst,
+                                    returnproduct_sgst=sgst,
                                     returntotal_amount=total_amount,
                                     return_reason=product_data.get('reason', '')
                                 )
@@ -2851,7 +3210,7 @@ def add_purchase_return(request):
                                 returninvoiceid=return_invoice
                             ).aggregate(Sum('returntotal_amount'))['returntotal_amount__sum'] or 0
                             
-                            return_invoice.returninvoice_total = total_items + return_invoice.return_charges
+                            return_invoice.returninvoice_total = total_items
                             return_invoice.save()
                             
                         except json.JSONDecodeError as e:
@@ -3314,12 +3673,17 @@ def add_sales_return(request):
                 return_date_str = request.POST.get('return_sales_invoice_date')
                 return_date = convert_date_format(return_date_str)
                 
+                # Get charges
+                additional_charges = float(request.POST.get('return_sales_charges', 0))
+                transport_charges = float(request.POST.get('transport_charges', 0))
+                
                 # Create return invoice
                 return_invoice = ReturnSalesInvoiceMaster.objects.create(
                     return_sales_invoice_no=preview_id,
                     return_sales_invoice_date=return_date,
                     return_sales_customerid_id=request.POST.get('return_sales_customerid'),
-                    return_sales_charges=float(request.POST.get('return_sales_charges', 0)),
+                    return_sales_charges=additional_charges,
+                    transport_charges=transport_charges,
                     return_sales_invoice_total=0,  # Will be calculated
                     return_sales_invoice_paid=0
                 )
@@ -3347,11 +3711,12 @@ def add_sales_return(request):
                             return_rate = float(product_data.get('return_rate', 0))
                             return_quantity = float(product_data.get('return_quantity', 0))
                             discount = float(product_data.get('discount', 0))
-                            gst = float(product_data.get('gst', 0))
+                            cgst = float(product_data.get('cgst', 2.5))
+                            sgst = float(product_data.get('sgst', 2.5))
                             
                             base_price = return_rate * return_quantity
                             discounted_amount = base_price - discount
-                            item_total = discounted_amount + (discounted_amount * gst / 100)
+                            item_total = discounted_amount + (discounted_amount * (cgst + sgst) / 100)
                             
                             # Convert expiry date format
                             expiry_date = product_data.get('expiry', '')
@@ -3387,8 +3752,10 @@ def add_sales_return(request):
                                 return_sale_quantity=return_quantity,
                                 return_sale_discount=discount,
                                 return_sale_calculation_mode='flat',
-                                return_sale_igst=gst,
-                                return_sale_total_amount=item_total
+                                return_sale_cgst=cgst,
+                                return_sale_sgst=sgst,
+                                return_sale_total_amount=item_total,
+                                return_reason=product_data.get('return_reason', '')
                             )
                             
                             # STOCK UPDATE: Sales return increases stock
@@ -3420,8 +3787,8 @@ def add_sales_return(request):
                             total_amount += item_total
                             return_items_created += 1
                         
-                        # Update return invoice total
-                        return_invoice.return_sales_invoice_total = total_amount + return_invoice.return_sales_charges
+                        # Update return invoice total (products + additional charges + transport charges)
+                        return_invoice.return_sales_invoice_total = total_amount + return_invoice.return_sales_charges + return_invoice.transport_charges
                         return_invoice.save()
                         
                     except json.JSONDecodeError as e:
@@ -3533,7 +3900,7 @@ def add_sales_return_item(request, return_id):
                 return_sales_invoice_no=return_invoice
             ).aggregate(Sum('return_sale_total_amount'))['return_sale_total_amount__sum'] or 0
             
-            return_invoice.return_sales_invoice_total = total_items + return_invoice.return_sales_charges
+            return_invoice.return_sales_invoice_total = total_items + return_invoice.return_sales_charges + (return_invoice.transport_charges or 0)
             return_invoice.save()
             
             messages.success(request, f"Return item for {return_item.return_product_name} added successfully!")
@@ -3586,7 +3953,7 @@ def edit_sales_return_item(request, return_id, item_id):
                 return_sales_invoice_no=return_invoice
             ).aggregate(Sum('return_sale_total_amount'))['return_sale_total_amount__sum'] or 0
             
-            return_invoice.return_sales_invoice_total = total_items + return_invoice.return_sales_charges
+            return_invoice.return_sales_invoice_total = total_items + return_invoice.return_sales_charges + (return_invoice.transport_charges or 0)
             return_invoice.save()
             
             messages.success(request, f"Return item for {return_item.return_product_name} updated successfully!")
@@ -3626,7 +3993,7 @@ def delete_sales_return_item(request, return_id, item_id):
                 return_sales_invoice_no=return_invoice
             ).aggregate(Sum('return_sale_total_amount'))['return_sale_total_amount__sum'] or 0
             
-            return_invoice.return_sales_invoice_total = total_items + return_invoice.return_sales_charges
+            return_invoice.return_sales_invoice_total = total_items + return_invoice.return_sales_charges + (return_invoice.transport_charges or 0)
             return_invoice.save()
             
             messages.success(request, f"Sales Return item for {product_name} deleted successfully!")
@@ -3671,6 +4038,262 @@ def get_sales_invoice_items(request):
         })
         
     return JsonResponse(items_list, safe=False)
+
+@login_required
+def add_invoice_series(request):
+    if request.method == 'POST':
+        series_name = request.POST.get('series_name', '').strip().upper()
+        
+        if not series_name:
+            return JsonResponse({'success': False, 'error': 'Series name is required'})
+        
+        if len(series_name) > 10:
+            return JsonResponse({'success': False, 'error': 'Series name must be 10 characters or less'})
+        
+        try:
+            # Check if series already exists
+            if InvoiceSeries.objects.filter(series_name=series_name).exists():
+                return JsonResponse({'success': False, 'error': 'Series already exists'})
+            
+            # Create new series
+            series = InvoiceSeries.objects.create(
+                series_name=series_name,
+                series_prefix=series_name,
+                current_number=1,
+                is_active=True
+            )
+            
+            return JsonResponse({
+                'success': True,
+                'series_id': series.series_id,
+                'series_name': series.series_name,
+                'message': f'Series "{series_name}" added successfully!'
+            })
+            
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request method'})
+
+@login_required
+def print_purchase_receipt(request, invoice_id):
+    """Print purchase receipt in landscape format with pharmacy and supplier details"""
+    from collections import defaultdict
+    
+    invoice = get_object_or_404(InvoiceMaster, invoiceid=invoice_id)
+    purchases = PurchaseMaster.objects.filter(product_invoiceid=invoice_id).order_by('source_challan_date', 'productid')
+    
+    # Group products by challan date
+    challan_groups = defaultdict(list)
+    no_challan_products = []
+    
+    global_counter = 1
+    for purchase in purchases:
+        purchase.global_counter = global_counter
+        global_counter += 1
+        
+        if purchase.source_challan_date:
+            challan_groups[purchase.source_challan_date].append(purchase)
+        else:
+            no_challan_products.append(purchase)
+    
+    # Sort challan dates
+    sorted_challan_dates = sorted(challan_groups.keys())
+    
+    # Calculate total
+    purchases_total = purchases.aggregate(total=Sum('total_amount'))['total'] or 0
+    
+    # Get pharmacy details
+    pharmacy = None
+    try:
+        pharmacy = Pharmacy_Details.objects.first()
+    except Pharmacy_Details.DoesNotExist:
+        pharmacy = None
+    
+    context = {
+        'invoice': invoice,
+        'challan_groups': dict(challan_groups),
+        'sorted_challan_dates': sorted_challan_dates,
+        'no_challan_products': no_challan_products,
+        'purchases_total': purchases_total,
+        'pharmacy': pharmacy,
+        'title': f'Purchase Receipt - Invoice #{invoice.invoice_no}'
+    }
+    return render(request, 'purchases/pharmacy_purchase_receipt.html', context)
+
+@login_required
+def print_sales_receipt(request, invoice_id):
+    """Print sales receipt with pagination (7 products per page) and challan grouping"""
+    invoice = get_object_or_404(SalesInvoiceMaster, sales_invoice_no=invoice_id)
+    sales = SalesMaster.objects.filter(sales_invoice_no=invoice_id).order_by('source_challan_date', 'source_challan_no')
+    
+    # Group products by challan
+    from collections import OrderedDict
+    challan_groups = OrderedDict()
+    regular_products = []
+    
+    for sale in sales:
+        if sale.source_challan_no:
+            key = (sale.source_challan_no, sale.source_challan_date)
+            if key not in challan_groups:
+                challan_groups[key] = []
+            challan_groups[key].append(sale)
+        else:
+            regular_products.append(sale)
+    
+    # Add global counter
+    counter = 1
+    for sale in sales:
+        sale.global_counter = counter
+        counter += 1
+    
+    # Calculate total
+    sales_total = sales.aggregate(total=Sum('sale_total_amount'))['total'] or 0
+    
+    # Get pharmacy details
+    pharmacy = None
+    try:
+        pharmacy = Pharmacy_Details.objects.first()
+    except Pharmacy_Details.DoesNotExist:
+        pharmacy = None
+    
+    context = {
+        'invoice': invoice,
+        'sales': sales,
+        'challan_groups': challan_groups,
+        'regular_products': regular_products,
+        'sales_total': sales_total,
+        'pharmacy': pharmacy,
+        'title': f'Sales Receipt - Invoice #{invoice.sales_invoice_no}'
+    }
+    return render(request, 'sales/pharmacy_sales_receipt.html', context)
+
+
+
+@login_required
+def get_invoice_series(request):
+    try:
+        series_list = InvoiceSeries.objects.filter(is_active=True).order_by('series_name')
+        series_data = [{
+            'series_id': series.series_id,
+            'series_name': series.series_name,
+            'current_number': series.current_number
+        } for series in series_list]
+        
+        return JsonResponse({'success': True, 'series': series_data})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+def get_next_invoice_number(request):
+    series_id = request.GET.get('series_id')
+    
+    if not series_id:
+        return JsonResponse({'success': False, 'error': 'Series ID is required'})
+    
+    try:
+        series = InvoiceSeries.objects.get(series_id=series_id, is_active=True)
+        
+        # Generate preview number (don't increment yet)
+        if series.series_prefix:
+            preview_number = f"{series.series_prefix}{series.current_number:07d}"
+        else:
+            preview_number = f"{series.series_name}{series.current_number:07d}"
+        
+        return JsonResponse({
+            'success': True,
+            'invoice_number': preview_number,
+            'series_name': series.series_name
+        })
+        
+    except InvoiceSeries.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Series not found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+def product_search_suggestions(request):
+    """API endpoint for product search autocomplete suggestions"""
+    query = request.GET.get('q', '').strip()
+    
+    if len(query) < 1:
+        return JsonResponse({'success': False, 'error': 'Query too short'})
+    
+    try:
+        # Progressive search strategy based on query length
+        if len(query) == 1:
+            # For single character, only search product names starting with that letter
+            products = ProductMaster.objects.filter(
+                product_name__istartswith=query
+            ).order_by('product_name')[:8]
+        elif len(query) == 2:
+            # For two characters, expand to company names and more specific matching
+            products = ProductMaster.objects.filter(
+                Q(product_name__istartswith=query) |
+                Q(product_company__istartswith=query)
+            ).order_by('product_name')[:10]
+        else:
+            # For 3+ characters, use comprehensive search with priority ordering
+            # First get exact and starts-with matches
+            exact_matches = ProductMaster.objects.filter(
+                Q(product_name__iexact=query) |
+                Q(product_name__istartswith=query) |
+                Q(product_company__istartswith=query)
+            ).order_by('product_name')[:5]
+            
+            # Then get contains matches
+            contains_matches = ProductMaster.objects.filter(
+                Q(product_name__icontains=query) |
+                Q(product_company__icontains=query) |
+                Q(product_salt__icontains=query) |
+                Q(product_category__icontains=query) |
+                Q(product_barcode__icontains=query)
+            ).exclude(
+                productid__in=[p.productid for p in exact_matches]
+            ).order_by('product_name')[:7]
+            
+            # Combine results
+            products = list(exact_matches) + list(contains_matches)
+        
+        suggestions = []
+        for product in products:
+            try:
+                # Get current stock for this product
+                stock_info = get_stock_status(product.productid)
+                current_stock = stock_info.get('current_stock', 0)
+                
+                suggestions.append({
+                    'productid': product.productid,
+                    'product_name': product.product_name,
+                    'product_company': product.product_company,
+                    'product_packing': product.product_packing,
+                    'product_category': product.product_category,
+                    'current_stock': current_stock,
+                    'product_barcode': product.product_barcode or ''
+                })
+            except Exception as e:
+                # If stock calculation fails, still include the product
+                suggestions.append({
+                    'productid': product.productid,
+                    'product_name': product.product_name,
+                    'product_company': product.product_company,
+                    'product_packing': product.product_packing,
+                    'product_category': product.product_category,
+                    'current_stock': 0,
+                    'product_barcode': product.product_barcode or ''
+                })
+        
+        return JsonResponse({
+            'success': True,
+            'suggestions': suggestions,
+            'count': len(suggestions)
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
 
 @login_required
 def add_sales_return_payment(request, return_id):
@@ -3821,8 +4444,8 @@ def update_sales_return_api(request):
             if new_items:
                 ReturnSalesMaster.objects.bulk_create(new_items)
             
-            # Update total and save
-            return_invoice.return_sales_invoice_total = total_amount + return_charges
+            # Update total and save (products + additional charges + transport charges)
+            return_invoice.return_sales_invoice_total = total_amount + return_charges + transport_charges
             return_invoice.save()
             
             return JsonResponse({
@@ -3915,24 +4538,815 @@ def delete_sales_return_payment(request, return_id, payment_id):
     return render(request, 'returns/sales_return_payment_confirm_delete.html', context)
 
 @login_required
+def add_payment(request):
+    if request.method == 'POST':
+        # Handle AJAX request
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            try:
+                # Validate required fields first
+                payment_date = request.POST.get('payment_date')
+                payment_amount = request.POST.get('payment_amount')
+                payment_mode = request.POST.get('payment_mode')
+                invoice_id = request.POST.get('ip_invoiceid')
+                payment_ref_no = request.POST.get('payment_ref_no', '')
+                bank_name = request.POST.get('bank_name', '')
+                
+                if not all([payment_date, payment_amount, payment_mode, invoice_id]):
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Missing required fields'
+                    })
+                
+                # Get the invoice
+                try:
+                    invoice = InvoiceMaster.objects.get(invoiceid=invoice_id)
+                except InvoiceMaster.DoesNotExist:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Invoice not found'
+                    })
+                
+                # Validate payment amount
+                try:
+                    payment_amount = float(payment_amount)
+                    if payment_amount <= 0:
+                        return JsonResponse({
+                            'success': False,
+                            'error': 'Payment amount must be greater than 0'
+                        })
+                except (ValueError, TypeError):
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Invalid payment amount'
+                    })
+                
+                # Check if payment exceeds balance
+                balance = invoice.invoice_total - invoice.invoice_paid
+                if payment_amount > balance:
+                    return JsonResponse({
+                        'success': False,
+                        'error': f'Payment amount cannot exceed balance of ₹{balance:.2f}'
+                    })
+                
+                # Parse date
+                try:
+                    from datetime import datetime
+                    payment_date = datetime.strptime(payment_date, '%Y-%m-%d').date()
+                except ValueError:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Invalid date format'
+                    })
+                
+                # Handle bank name for bank transfer
+                if payment_mode == 'bank_transfer' and bank_name:
+                    payment_mode = f'bank_transfer - {bank_name}'
+                
+                # Use database transaction to ensure data consistency
+                with transaction.atomic():
+                    # Create payment record
+                    payment = InvoicePaid.objects.create(
+                        ip_invoiceid=invoice,
+                        payment_date=payment_date,
+                        payment_amount=payment_amount,
+                        payment_mode=payment_mode,
+                        payment_ref_no=payment_ref_no
+                    )
+                    
+                    # Update invoice paid amount and payment status
+                    invoice.invoice_paid += payment_amount
+                    
+                    # Update payment status based on balance
+                    balance = invoice.invoice_total - invoice.invoice_paid
+                    if balance <= 0.01:
+                        invoice.payment_status = 'paid'
+                    elif invoice.invoice_paid > 0:
+                        invoice.payment_status = 'partial'
+                    else:
+                        invoice.payment_status = 'pending'
+                    
+                    invoice.save()
+                    
+                    # Calculate new balance for response
+                    new_balance = invoice.invoice_total - invoice.invoice_paid
+                    
+                    # Update all related purchase invoice lists and details
+                    # This ensures that wherever this invoice appears, the payment status is updated
+                    
+                    # Log the payment for audit trail
+                    print(f"Payment added: Invoice #{invoice.invoice_no}, Amount: ₹{payment_amount}, New Balance: ₹{new_balance}")
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': f'Payment of ₹{payment_amount:.2f} added successfully! Invoice balance updated.',
+                    'payment_id': payment.payment_id,
+                    'invoice_no': invoice.invoice_no,
+                    'supplier_name': invoice.supplierid.supplier_name,
+                    'new_balance': float(new_balance),
+                    'payment_status': 'Paid' if new_balance <= 0.01 else 'Partial' if invoice.invoice_paid > 0 else 'Unpaid'
+                })
+                    
+            except Exception as e:
+                import traceback
+                print(f"Payment error: {str(e)}")
+                print(traceback.format_exc())
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Server error: {str(e)}'
+                })
+        
+        # Handle regular form submission (fallback)
+        form = PaymentForm(request.POST)
+        if form.is_valid():
+            with transaction.atomic():
+                payment = form.save()
+                # Update invoice paid amount and status
+                invoice = payment.ip_invoiceid
+                invoice.invoice_paid += payment.payment_amount
+                
+                # Update payment status
+                new_balance = invoice.invoice_total - invoice.invoice_paid
+                if new_balance <= 0.01:
+                    invoice.payment_status = 'paid'
+                elif invoice.invoice_paid > 0:
+                    invoice.payment_status = 'partial'
+                else:
+                    invoice.payment_status = 'unpaid'
+                
+                invoice.save()
+                
+            messages.success(request, f"Payment of ₹{payment.payment_amount} added successfully! Invoice updated.")
+            return redirect('add_payment')  # Redirect back to payment form for next payment
+    else:
+        form = PaymentForm()
+    
+    context = {
+        'form': form,
+        'title': 'Add Payment'
+    }
+    return render(request, 'finance/payment_form.html', context)
+
+@login_required
+def search_supplier_invoices(request):
+    query = request.GET.get('q', '').strip()
+    results = []
+    
+    if len(query) >= 2:
+        # Search suppliers and their invoices
+        suppliers = SupplierMaster.objects.filter(
+            supplier_name__icontains=query
+        )[:10]
+        
+        for supplier in suppliers:
+            # Get unpaid or partially paid invoices for this supplier
+            invoices = InvoiceMaster.objects.filter(
+                supplierid=supplier,
+                invoice_paid__lt=F('invoice_total')
+            ).order_by('-invoice_date')[:5]
+            
+            for invoice in invoices:
+                balance = invoice.invoice_total - invoice.invoice_paid
+                if balance > 0:  # Only show invoices with outstanding balance
+                    results.append({
+                        'id': invoice.invoiceid,
+                        'text': f"{supplier.supplier_name} - Invoice #{invoice.invoice_no} (₹{balance:.2f} due)",
+                        'supplier_name': supplier.supplier_name,
+                        'invoice_no': invoice.invoice_no,
+                        'invoice_date': invoice.invoice_date.strftime('%d-%m-%Y'),
+                        'total_amount': float(invoice.invoice_total),
+                        'paid_amount': float(invoice.invoice_paid),
+                        'balance_amount': float(balance)
+                    })
+    
+    return JsonResponse(results, safe=False)
+
+@login_required
+def search_customer_invoices(request):
+    query = request.GET.get('q', '').strip()
+    results = []
+    
+    if len(query) >= 2:
+        # Search customers and their invoices
+        customers = CustomerMaster.objects.filter(
+            customer_name__icontains=query
+        )[:10]
+        
+        for customer in customers:
+            # Get unpaid or partially paid invoices for this customer
+            invoices = SalesInvoiceMaster.objects.filter(
+                customerid=customer,
+
+            ).order_by('-sales_invoice_date')[:5]
+            
+            for invoice in invoices:
+                balance = invoice.sales_invoice_total - invoice.sales_invoice_paid
+                if balance > 0:  # Only show invoices with outstanding balance
+                    results.append({
+                        'invoice_no': invoice.sales_invoice_no,
+                        'customer_id': customer.customerid,
+                        'customer_name': customer.customer_name,
+                        'invoice_date': invoice.sales_invoice_date.strftime('%d-%m-%Y'),
+                        'total_amount': float(invoice.sales_invoice_total),
+                        'paid_amount': float(invoice.sales_invoice_paid),
+                        'balance_amount': float(balance)
+                    })
+    
+    return JsonResponse(results, safe=False)
+
+@login_required
+def add_receipt(request):
+    if request.method == 'POST':
+        try:
+            # Get form data
+            sales_invoice_no = request.POST.get('sales_invoice')
+            receipt_date = request.POST.get('receipt_date')
+            receipt_amount = float(request.POST.get('receipt_amount', 0))
+            receipt_method = request.POST.get('receipt_method')
+            receipt_reference = request.POST.get('receipt_reference', '')
+            bank_name = request.POST.get('bank_name', '')
+            
+            # Validate required fields
+            if not sales_invoice_no:
+                raise ValueError('Please select an invoice')
+            if not receipt_date:
+                raise ValueError('Receipt date is required')
+            if receipt_amount <= 0:
+                raise ValueError('Receipt amount must be greater than 0')
+            if not receipt_method:
+                raise ValueError('Receipt method is required')
+            
+            # Get the sales invoice
+            invoice = get_object_or_404(SalesInvoiceMaster, sales_invoice_no=sales_invoice_no)
+            
+            # Validate amount doesn't exceed balance
+            balance = invoice.sales_invoice_total - invoice.sales_invoice_paid
+            if receipt_amount > balance:
+                raise ValueError(f'Receipt amount cannot exceed balance of ₹{balance:.2f}')
+            
+            # Handle bank transfer method with bank name
+            if receipt_method == 'bank_transfer' and bank_name:
+                receipt_method = f'bank-{bank_name}'
+            
+            # Parse date - SalesInvoicePaid uses DateTimeField
+            from datetime import datetime
+            try:
+                parsed_date = datetime.strptime(receipt_date, '%Y-%m-%d')
+            except ValueError:
+                raise ValueError('Invalid date format')
+            
+            # Create receipt record in SalesInvoicePaid
+            receipt = SalesInvoicePaid.objects.create(
+                sales_ip_invoice_no=invoice,
+                sales_payment_date=parsed_date,
+                sales_payment_amount=receipt_amount,
+                sales_payment_mode=receipt_method,
+                sales_payment_ref_no=receipt_reference
+            )
+            
+            # Update invoice paid amount
+            invoice.sales_invoice_paid += receipt_amount
+            invoice.save()
+            
+            success_msg = f'Receipt of ₹{receipt_amount:.2f} added successfully!'
+            
+            # Handle AJAX request
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'success': True,
+                    'message': success_msg
+                })
+            
+            messages.success(request, success_msg)
+            return redirect('add_receipt')
+            
+        except ValueError as e:
+            error_msg = str(e)
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'success': False,
+                    'error': error_msg
+                })
+            messages.error(request, error_msg)
+        except Exception as e:
+            error_msg = f'Error adding receipt: {str(e)}'
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'success': False,
+                    'error': error_msg
+                })
+            messages.error(request, error_msg)
+    
+    context = {
+        'title': 'Add Receipt'
+    }
+    return render(request, 'finance/receipt_form.html', context)
+
+@login_required
+def payment_list(request):
+    payments = InvoicePaid.objects.select_related('ip_invoiceid__supplierid').order_by('-payment_date')
+    
+    # Search functionality
+    search_query = request.GET.get('search', '')
+    if search_query:
+        payments = payments.filter(
+            Q(ip_invoiceid__invoice_no__icontains=search_query) |
+            Q(ip_invoiceid__supplierid__supplier_name__icontains=search_query) |
+            Q(payment_ref_no__icontains=search_query)
+        )
+    
+    # Filter by date range
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    if start_date and end_date:
+        try:
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+            payments = payments.filter(payment_date__range=[start_date, end_date])
+        except ValueError:
+            messages.error(request, "Invalid date format. Please use YYYY-MM-DD.")
+    
+    # Calculate total amount
+    total_amount = payments.aggregate(Sum('payment_amount'))['payment_amount__sum'] or 0
+    
+    # Pagination
+    paginator = Paginator(payments, 15)
+    page_number = request.GET.get('page')
+    payments = paginator.get_page(page_number)
+    
+    context = {
+        'payments': payments,
+        'search_query': search_query,
+        'start_date': start_date if 'start_date' in locals() else '',
+        'end_date': end_date if 'end_date' in locals() else '',
+        'total_amount': total_amount,
+        'title': 'Payment List'
+    }
+    return render(request, 'finance/payment_list.html', context)
+
+@login_required
+def edit_payment(request, pk):
+    payment = get_object_or_404(InvoicePaid, pk=pk)
+    original_amount = payment.payment_amount
+    
+    if request.method == 'POST':
+        form = PaymentForm(request.POST, instance=payment)
+        if form.is_valid():
+            new_payment = form.save(commit=False)
+            difference = new_payment.payment_amount - original_amount
+            
+            # Update invoice paid amount
+            invoice = new_payment.ip_invoiceid
+            if invoice.invoice_paid + difference > invoice.invoice_total:
+                messages.error(request, "Payment amount cannot exceed the invoice total.")
+                return redirect('edit_payment', pk=pk)
+            
+            new_payment.save()
+            invoice.invoice_paid += difference
+            invoice.save()
+            
+            messages.success(request, "Payment updated successfully!")
+            return redirect('payment_list')
+    else:
+        form = PaymentForm(instance=payment)
+    
+    context = {
+        'form': form,
+        'payment': payment,
+        'title': 'Edit Payment'
+    }
+    return render(request, 'finance/payment_form.html', context)
+
+@login_required
+def delete_payment(request, pk):
+    if not request.user.user_type.lower() in ['admin']:
+        messages.error(request, "You don't have permission to perform this action.")
+        return redirect('payment_list')
+    
+    payment = get_object_or_404(InvoicePaid, pk=pk)
+    
+    if request.method == 'POST':
+        # Update invoice paid amount
+        invoice = payment.ip_invoiceid
+        invoice.invoice_paid -= payment.payment_amount
+        invoice.save()
+        
+        # Delete payment
+        payment.delete()
+        
+        messages.success(request, "Payment deleted successfully!")
+        return redirect('payment_list')
+    
+    context = {
+        'payment': payment,
+        'title': 'Delete Payment'
+    }
+    return render(request, 'finance/payment_confirm_delete.html', context)
+
+@login_required
+def export_payments_pdf(request):
+    from django.http import HttpResponse
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+    from reportlab.lib.styles import getSampleStyleSheet
+    import io
+    
+    # Get filtered payments
+    payments = InvoicePaid.objects.select_related('ip_invoiceid__supplierid').order_by('-payment_date')
+    
+    search_query = request.GET.get('search', '')
+    if search_query:
+        payments = payments.filter(
+            Q(ip_invoiceid__invoice_no__icontains=search_query) |
+            Q(ip_invoiceid__supplierid__supplier_name__icontains=search_query)
+        )
+    
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    if start_date and end_date:
+        try:
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+            payments = payments.filter(payment_date__range=[start_date, end_date])
+        except ValueError:
+            pass
+    
+    # Create PDF
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    elements = []
+    
+    # Title
+    styles = getSampleStyleSheet()
+    title = Paragraph("Payments Report", styles['Title'])
+    elements.append(title)
+    
+    # Table data
+    data = [['Date', 'Supplier', 'Invoice No', 'Amount', 'Method', 'Reference']]
+    total_amount = 0
+    
+    for payment in payments:
+        data.append([
+            payment.payment_date.strftime('%d-%m-%Y'),
+            payment.ip_invoiceid.supplierid.supplier_name,
+            payment.ip_invoiceid.invoice_no,
+            f'₹{payment.payment_amount:.2f}',
+            payment.payment_mode or '-',
+            payment.payment_ref_no or '-'
+        ])
+        total_amount += payment.payment_amount
+    
+    # Add total row
+    data.append(['', '', '', f'₹{total_amount:.2f}', '', ''])
+    
+    # Create table
+    table = Table(data)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 14),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    
+    elements.append(table)
+    doc.build(elements)
+    
+    buffer.seek(0)
+    response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="payments_report.pdf"'
+    return response
+
+@login_required
+def export_payments_excel(request):
+    import openpyxl
+    from django.http import HttpResponse
+    from openpyxl.styles import Font, Alignment
+    
+    # Get filtered payments
+    payments = InvoicePaid.objects.select_related('ip_invoiceid__supplierid').order_by('-payment_date')
+    
+    search_query = request.GET.get('search', '')
+    if search_query:
+        payments = payments.filter(
+            Q(ip_invoiceid__invoice_no__icontains=search_query) |
+            Q(ip_invoiceid__supplierid__supplier_name__icontains=search_query)
+        )
+    
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    if start_date and end_date:
+        try:
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+            payments = payments.filter(payment_date__range=[start_date, end_date])
+        except ValueError:
+            pass
+    
+    # Create workbook
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Payments Report"
+    
+    # Headers
+    headers = ['Date', 'Supplier', 'Invoice No', 'Amount', 'Method', 'Reference']
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(horizontal='center')
+    
+    # Data
+    total_amount = 0
+    for row, payment in enumerate(payments, 2):
+        ws.cell(row=row, column=1, value=payment.payment_date.strftime('%d-%m-%Y'))
+        ws.cell(row=row, column=2, value=payment.ip_invoiceid.supplierid.supplier_name)
+        ws.cell(row=row, column=3, value=payment.ip_invoiceid.invoice_no)
+        ws.cell(row=row, column=4, value=payment.payment_amount)
+        ws.cell(row=row, column=5, value=payment.payment_mode or '-')
+        ws.cell(row=row, column=6, value=payment.payment_ref_no or '-')
+        total_amount += payment.payment_amount
+    
+    # Total row
+    total_row = len(list(payments)) + 2
+    ws.cell(row=total_row, column=3, value='Total:')
+    ws.cell(row=total_row, column=4, value=total_amount)
+    
+    # Auto-adjust column widths
+    for column in ws.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        adjusted_width = (max_length + 2)
+        ws.column_dimensions[column_letter].width = adjusted_width
+    
+    # Create response
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename="payments_report.xlsx"'
+    wb.save(response)
+    return response
+
+@login_required
+def receipt_list(request):
+    receipts = SalesInvoicePaid.objects.all().order_by('-receipt_date')
+    
+    # Search functionality
+    search_query = request.GET.get('search', '')
+    if search_query:
+        receipts = receipts.filter(
+            Q(customer__customer_name__icontains=search_query) |
+            Q(sales_invoice__sales_invoice_no__icontains=search_query) |
+            Q(receipt_reference__icontains=search_query)
+        )
+    
+    # Filter by date range
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    if start_date and end_date:
+        try:
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+            receipts = receipts.filter(receipt_date__range=[start_date, end_date])
+        except ValueError:
+            messages.error(request, "Invalid date format. Please use YYYY-MM-DD.")
+    
+    # Calculate total amount
+    total_amount = receipts.aggregate(Sum('receipt_amount'))['receipt_amount__sum'] or 0
+    
+    # Pagination
+    paginator = Paginator(receipts, 15)
+    page_number = request.GET.get('page')
+    receipts = paginator.get_page(page_number)
+    
+    context = {
+        'receipts': receipts,
+        'search_query': search_query,
+        'start_date': start_date if 'start_date' in locals() else '',
+        'end_date': end_date if 'end_date' in locals() else '',
+        'total_amount': total_amount,
+        'title': 'Receipt List'
+    }
+    return render(request, 'finance/receipt_list.html', context)
+
+@login_required
+@login_required
+def edit_receipt(request, pk):
+    receipt = get_object_or_404(receipt_id=pk)
+    
+    if request.method == 'POST':
+        form = ReceiptForm(request.POST, instance=receipt)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Receipt updated successfully!")
+            return redirect('receipt_list')
+    else:
+        form = ReceiptForm(instance=receipt)
+    
+    context = {
+        'form': form,
+        'receipt': receipt,
+        'title': 'Edit Receipt'
+    }
+    return render(request, 'finance/receipt_form.html', context)
+
+@login_required
+def delete_receipt(request, pk):
+    if not request.user.user_type.lower() in ['admin']:
+        messages.error(request, "You don't have permission to perform this action.")
+        return redirect('receipt_list')
+    
+    receipt = get_object_or_404(receipt_id=pk)
+    
+    if request.method == 'POST':
+        receipt.delete()
+        messages.success(request, "Receipt deleted successfully!")
+        return redirect('receipt_list')
+    
+    context = {
+        'receipt': receipt,
+        'title': 'Delete Receipt'
+    }
+    return render(request, 'finance/receipt_confirm_delete.html', context)
+
+@login_required
+def export_receipts_pdf(request):
+    from django.http import HttpResponse
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+    from reportlab.lib.styles import getSampleStyleSheet
+    import io
+    
+    # Get filtered receipts
+    receipts = SalesInvoicePaid.objects.all().order_by('-receipt_date')
+    
+    search_query = request.GET.get('search', '')
+    if search_query:
+        receipts = receipts.filter(
+            Q(customer__customer_name__icontains=search_query) |
+            Q(sales_invoice__sales_invoice_no__icontains=search_query)
+        )
+    
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    if start_date and end_date:
+        try:
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+            receipts = receipts.filter(receipt_date__range=[start_date, end_date])
+        except ValueError:
+            pass
+    
+    # Create PDF
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    elements = []
+    
+    # Title
+    styles = getSampleStyleSheet()
+    title = Paragraph("Receipts Report", styles['Title'])
+    elements.append(title)
+    
+    # Table data
+    data = [['Date', 'Customer', 'Amount', 'Method', 'Reference']]
+    total_amount = 0
+    
+    for receipt in receipts:
+        data.append([
+            receipt.receipt_date.strftime('%d-%m-%Y'),
+            receipt.customer.customer_name if receipt.customer else '-',
+            f'₹{receipt.receipt_amount:.2f}',
+            receipt.receipt_method or '-',
+            receipt.receipt_reference or '-'
+        ])
+        total_amount += receipt.receipt_amount
+    
+    # Add total row
+    data.append(['', '', f'₹{total_amount:.2f}', '', ''])
+    
+    # Create table
+    table = Table(data)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 14),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    
+    elements.append(table)
+    doc.build(elements)
+    
+    buffer.seek(0)
+    response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="receipts_report.pdf"'
+    return response
+
+@login_required
+def export_receipts_excel(request):
+    import openpyxl
+    from django.http import HttpResponse
+    from openpyxl.styles import Font, Alignment
+    
+    # Get filtered receipts
+    receipts = SalesInvoicePaid.objects.all().order_by('-receipt_date')
+    
+    search_query = request.GET.get('search', '')
+    if search_query:
+        receipts = receipts.filter(
+            Q(customer__customer_name__icontains=search_query) |
+            Q(sales_invoice__sales_invoice_no__icontains=search_query)
+        )
+    
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    if start_date and end_date:
+        try:
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+            receipts = receipts.filter(receipt_date__range=[start_date, end_date])
+        except ValueError:
+            pass
+    
+    # Create workbook
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Receipts Report"
+    
+    # Headers
+    headers = ['Date', 'Customer', 'Amount', 'Method', 'Reference']
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(horizontal='center')
+    
+    # Data
+    total_amount = 0
+    for row, receipt in enumerate(receipts, 2):
+        ws.cell(row=row, column=1, value=receipt.receipt_date.strftime('%d-%m-%Y'))
+        ws.cell(row=row, column=2, value=receipt.customer.customer_name if receipt.customer else '-')
+        ws.cell(row=row, column=3, value=receipt.receipt_amount)
+        ws.cell(row=row, column=4, value=receipt.receipt_method or '-')
+        ws.cell(row=row, column=5, value=receipt.receipt_reference or '-')
+        total_amount += receipt.receipt_amount
+    
+    # Total row
+    total_row = len(list(receipts)) + 2
+    ws.cell(row=total_row, column=2, value='Total:')
+    ws.cell(row=total_row, column=3, value=total_amount)
+    
+    # Auto-adjust column widths
+    for column in ws.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        adjusted_width = (max_length + 2)
+        ws.column_dimensions[column_letter].width = adjusted_width
+    
+    # Create response
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename="receipts_report.xlsx"'
+    wb.save(response)
+    return response
+
+@login_required
 def inventory_list(request):
     from django.db.models import Avg, Case, When, FloatField, Sum
     from django.http import JsonResponse
 
     # Get search query and offset
-    search_query = request.GET.get('search', '')
+    search_query = request.GET.get('search', '').strip()
     offset = int(request.GET.get('offset', 0))
     limit = 50  # Reduced for better performance
 
     # Base query for products
     products_query = ProductMaster.objects.all().order_by('product_name')
     
-    # Apply search filter
+    # Enhanced search filter - startswith only
     if search_query:
         products_query = products_query.filter(
-            Q(product_name__icontains=search_query) | 
-            Q(product_company__icontains=search_query) |
-            Q(product_category__icontains=search_query)
+            Q(product_name__istartswith=search_query) |
+            Q(product_company__istartswith=search_query) |
+            Q(product_salt__istartswith=search_query)
         )
     
     # Get total count for "More" button logic
@@ -4032,6 +5446,12 @@ def inventory_list(request):
     page_out_of_stock = sum(1 for item in inventory_data if item['current_stock'] <= 0)
     page_low_stock = sum(1 for item in inventory_data if 0 < item['current_stock'] < 10)
     
+    # Get pharmacy details
+    try:
+        pharmacy = Pharmacy_Details.objects.first()
+    except:
+        pharmacy = None
+    
     context = {
         'inventory_data': inventory_data,
         'total_products': total_products,
@@ -4041,71 +5461,26 @@ def inventory_list(request):
         'search_query': search_query,
         'has_more': (offset + limit) < total_products,
         'next_offset': offset + limit,
-        'title': 'Inventory - All Products'
+        'title': 'Inventory - All Products',
+        'pharmacy': pharmacy
     }
     return render(request, 'inventory/inventory_list.html', context)
 
 @login_required
 def batch_inventory_report(request):
     from django.core.paginator import Paginator
-    from django.db.models import Sum, Avg, Case, When, DecimalField
+    from .fast_inventory import FastInventory
     
-    # Search functionality
     search_query = request.GET.get('search', '')
+    all_inventory_data = FastInventory.get_batch_inventory_data(search_query)
     
-    # Ultra-optimized query - single query with all calculations
-    batches_query = PurchaseMaster.objects.select_related('productid').values(
-        'productid__productid',
-        'productid__product_name',
-        'productid__product_company', 
-        'productid__product_packing',
-        'product_batch_no',
-        'product_expiry'
-    ).annotate(
-        batch_purchased=Sum('product_quantity'),
-        avg_mrp=Avg('product_MRP'),
-        batch_sold=Sum('productid__salesmaster__sale_quantity', 
-                      filter=Q(productid__salesmaster__product_batch_no=F('product_batch_no')))
-    ).annotate(
-        current_stock=Case(
-            When(batch_sold__isnull=True, then=F('batch_purchased')),
-            default=F('batch_purchased') - F('batch_sold')
-        ),
-        stock_value=Case(
-            When(batch_sold__isnull=True, then=F('batch_purchased') * F('avg_mrp')),
-            default=(F('batch_purchased') - F('batch_sold')) * F('avg_mrp'),
-            output_field=DecimalField(max_digits=10, decimal_places=2)
-        )
-    ).filter(
-        current_stock__gt=0
-    ).order_by('productid__product_name', 'product_batch_no')
-    
-    if search_query:
-        batches_query = batches_query.filter(
-            Q(productid__product_name__icontains=search_query) |
-            Q(productid__product_company__icontains=search_query) |
-            Q(product_batch_no__icontains=search_query)
-        )
-    
-    # Pagination with reasonable page size
-    paginator = Paginator(batches_query, 100)
+    # Pagination
+    paginator = Paginator(all_inventory_data, 100)
     page_number = request.GET.get('page')
     batches_page = paginator.get_page(page_number)
     
-    # Process results - all calculations done at DB level
-    inventory_data = []
-    for batch in batches_page:
-        inventory_data.append({
-            'product_id': batch['productid__productid'],
-            'product_name': batch['productid__product_name'],
-            'product_company': batch['productid__product_company'],
-            'product_packing': batch['productid__product_packing'],
-            'batch_no': batch['product_batch_no'],
-            'expiry': batch['product_expiry'],
-            'mrp': batch['avg_mrp'] or 0,
-            'stock': batch['current_stock'] or 0,
-            'value': batch['stock_value'] or 0
-        })
+    # Get inventory data for current page
+    inventory_data = list(batches_page)
     
     # Page-level total value
     page_total_value = sum(item['value'] for item in inventory_data)
@@ -4120,177 +5495,34 @@ def batch_inventory_report(request):
     return render(request, 'reports/batch_inventory_report.html', context)
 
 @login_required
+@login_required
+@login_required
 def dateexpiry_inventory_report(request):
-    from datetime import datetime, timedelta
-    from django.db.models import Sum, F, Case, When, Value, CharField, DateField, FloatField
-    from django.db.models.functions import Coalesce
-    from collections import defaultdict
-
-    # Get filter parameters
+    from .fast_inventory import FastInventory
+    
     search_query = request.GET.get('search', '')
     expiry_from = request.GET.get('expiry_from', '')
     expiry_to = request.GET.get('expiry_to', '')
-
-    # Base query for all purchase batches with stock > 0
-    batch_query = PurchaseMaster.objects.select_related('productid').annotate(
-        total_sold=Coalesce(
-            Sum('productid__salesmaster__sale_quantity',
-                filter=Q(productid__salesmaster__product_batch_no=F('product_batch_no'))),
-            Value(0.0, output_field=FloatField())
-        ),
-        current_stock=F('product_quantity') - F('total_sold')
-    ).filter(
-        current_stock__gt=0  # Only include batches with stock
-    ).values(
-        'productid__product_name',
-        'productid__product_company',
-        'productid__product_packing',
-        'product_batch_no',
-        'product_expiry',
-        'product_actual_rate',
-        'product_MRP',
-        'current_stock'
-    )
     
-    # Debug: Print first few items to see data structure
-
-
-    # Apply filters at the database level
-    if search_query:
-        batch_query = batch_query.filter(
-            Q(productid__product_name__icontains=search_query) |
-            Q(productid__product_company__icontains=search_query)
-        )
-
-    if expiry_from:
-        try:
-            from_date = datetime.strptime(expiry_from, '%Y-%m-%d').date()
-            batch_query = batch_query.filter(product_expiry__gte=from_date)
-        except (ValueError, TypeError):
-            pass  # Ignore invalid date format
-
-    if expiry_to:
-        try:
-            to_date = datetime.strptime(expiry_to, '%Y-%m-%d').date()
-            batch_query = batch_query.filter(product_expiry__lte=to_date)
-        except (ValueError, TypeError):
-            pass  # Ignore invalid date format
-
-    # Group and process data in Python
-    grouped_data = defaultdict(list)
-    today = datetime.now().date()
-    total_value = 0
-
-    for item in batch_query:
-        expiry_date = item['product_expiry']
-        current_stock = item['current_stock']
-        
-        # Skip if no stock
-        if current_stock <= 0:
-            continue
-            
-        # Parse expiry date and convert to MM-YYYY format
-        parsed_expiry_date = None
-        expiry_mmyyyy = None
-        
-        if expiry_date:
-            if isinstance(expiry_date, str):
-                # Try different date formats
-                for fmt in ['%Y-%m-%d', '%d-%m-%Y', '%m-%Y', '%d%m%Y']:
-                    try:
-                        if fmt == '%m-%Y':
-                            # Already in MM-YYYY format
-                            temp_date = datetime.strptime(expiry_date, fmt)
-                            parsed_expiry_date = temp_date.replace(day=1).date()  # Use first day for sorting
-                            expiry_mmyyyy = expiry_date
-                        else:
-                            parsed_expiry_date = datetime.strptime(expiry_date, fmt).date()
-                            expiry_mmyyyy = parsed_expiry_date.strftime('%m-%Y')
-                        break
-                    except (ValueError, TypeError):
-                        continue
-            elif hasattr(expiry_date, 'strftime'):
-                parsed_expiry_date = expiry_date.date() if hasattr(expiry_date, 'date') else expiry_date
-                expiry_mmyyyy = parsed_expiry_date.strftime('%m-%Y')
-            else:
-                parsed_expiry_date = expiry_date
-                if parsed_expiry_date:
-                    expiry_mmyyyy = parsed_expiry_date.strftime('%m-%Y')
-        
-        # Use MM-YYYY format for grouping
-        if not expiry_mmyyyy:
-            group_key = 'No Expiry Date'
-            days_to_expiry = 999999  # Large number for sorting
-            expiry_display = 'No Expiry Date'
-        else:
-            group_key = expiry_mmyyyy
-            # Calculate days to expiry using last day of the month
-            import calendar
-            month, year = map(int, expiry_mmyyyy.split('-'))  # MM-YYYY format
-            last_day = calendar.monthrange(year, month)[1]
-            month_end_date = datetime(year, month, last_day).date()
-            days_to_expiry = (month_end_date - today).days
-            expiry_display = expiry_mmyyyy
-            
-        stock_value = current_stock * (item['product_actual_rate'] or 0)
-        total_value += stock_value
-
-        grouped_data[group_key].append({
-            'product_name': item['productid__product_name'],
-            'product_company': item['productid__product_company'],
-            'product_packing': item['productid__product_packing'],
-            'batch_no': item['product_batch_no'],
-            'quantity': current_stock,
-            'purchase_rate': item['product_actual_rate'] or 0,
-            'mrp': item['product_MRP'] or 0,
-            'value': stock_value,
-            'days_to_expiry': days_to_expiry,
-            'expiry_date': parsed_expiry_date,
-            'expiry_mmyyyy': expiry_mmyyyy,
-            'expiry_display': expiry_display,
-        })
-
-    # Create sorted groups for the template
-    expiry_groups = []
-    for group_key, products_list in grouped_data.items():
-        group_total_value = sum(p['value'] for p in products_list)
-        
-        if group_key == 'No Expiry Date':
-            days_to_expiry = 999999
-            expiry_display = 'No Expiry Date'
-            expiry_date = None
-        else:
-            # group_key is MM-YYYY string
-            month, year = map(int, group_key.split('-'))  # MM-YYYY format
-            import calendar
-            last_day = calendar.monthrange(year, month)[1]
-            month_end_date = datetime(year, month, last_day).date()
-            days_to_expiry = (month_end_date - today).days
-            expiry_display = group_key  # MM-YYYY format
-            expiry_date = month_end_date
-        
-        expiry_groups.append({
-            'expiry_date': expiry_date,
-            'expiry_display': expiry_display,
-            'days_to_expiry': days_to_expiry,
-            'products': products_list,
-            'total_value': group_total_value,
-        })
+    expiry_data, total_value = FastInventory.get_dateexpiry_inventory_data(search_query)
     
-    # Sort by expiry date (earliest first, no expiry last)
-    expiry_groups.sort(key=lambda x: x['days_to_expiry'])
-
+    # Get pharmacy details
+    try:
+        pharmacy = Pharmacy_Details.objects.first()
+    except:
+        pharmacy = None
+    
     context = {
-        'expiry_data': expiry_groups,
+        'expiry_data': expiry_data,
         'total_value': total_value,
         'search_query': search_query,
         'expiry_from': expiry_from,
         'expiry_to': expiry_to,
+        'pharmacy': pharmacy,
         'title': 'Date-wise Inventory Report'
     }
     return render(request, 'reports/dateexpiry_inventory_report.html', context)
 
-@login_required
 def sales_report(request):
     from datetime import datetime
     from .sales_analytics import SalesAnalytics
@@ -4726,8 +5958,8 @@ def get_product_batch_selector(request):
     try:
         product = ProductMaster.objects.get(productid=product_id)
         
-        # Get all unique batches for this product with stock information
-        batches = PurchaseMaster.objects.filter(
+        # Get all unique batches from both purchases and supplier challans
+        purchase_batches = PurchaseMaster.objects.filter(
             productid=product
         ).values(
             'product_batch_no',
@@ -4735,6 +5967,38 @@ def get_product_batch_selector(request):
             'product_MRP',
             'product_actual_rate'
         ).distinct()
+        
+        challan_batches = SupplierChallanMaster.objects.filter(
+            product_id=product
+        ).values(
+            'product_batch_no',
+            'product_expiry', 
+            'product_mrp',
+            'product_purchase_rate'
+        ).distinct()
+        
+        # Combine batches from both sources
+        all_batches = {}
+        for batch in purchase_batches:
+            key = batch['product_batch_no']
+            all_batches[key] = {
+                'product_batch_no': batch['product_batch_no'],
+                'product_expiry': batch['product_expiry'],
+                'product_MRP': batch['product_MRP'],
+                'product_actual_rate': batch['product_actual_rate']
+            }
+        
+        for batch in challan_batches:
+            key = batch['product_batch_no']
+            if key not in all_batches:
+                all_batches[key] = {
+                    'product_batch_no': batch['product_batch_no'],
+                    'product_expiry': batch['product_expiry'],
+                    'product_MRP': batch['product_mrp'],
+                    'product_actual_rate': batch['product_purchase_rate']
+                }
+        
+        batches = list(all_batches.values())
         
         # Convert expiry date to MM-YYYY format
         def convert_expiry_to_mmyyyy(expiry_input):
@@ -5057,8 +6321,7 @@ def export_inventory_csv(request):
 # Finance - Payments
 @login_required
 def payment_list(request):
-    payments = PaymentMaster.objects.all().order_by('-payment_date')
-    
+        
     search_query = request.GET.get('search', '')
     if search_query:
         payments = payments.filter(
@@ -5096,7 +6359,7 @@ def add_payment(request):
 
 @login_required
 def edit_payment(request, payment_id):
-    payment = get_object_or_404(PaymentMaster, payment_id=payment_id)
+    payment = get_object_or_404(payment_id=payment_id)
     
     if request.method == 'POST':
         form = PaymentForm(request.POST, instance=payment)
@@ -5117,7 +6380,7 @@ def edit_payment(request, payment_id):
 
 @login_required
 def delete_payment(request, pk):
-    payment = get_object_or_404(PaymentMaster, payment_id=pk)
+    payment = get_object_or_404(payment_id=pk)
     
     if request.method == 'POST':
         try:
@@ -5180,7 +6443,6 @@ def export_payments_pdf(request):
     end_date = convert_date_format(end_date_str)
     
     # Filter payments by date if provided
-    payments = PaymentMaster.objects.all()
     if start_date and end_date:
         payments = payments.filter(payment_date__range=[start_date, end_date])
     elif start_date:
@@ -5252,7 +6514,6 @@ def export_payments_excel(request):
     writer = csv.writer(response)
     writer.writerow(['Date', 'Amount', 'Mode', 'Reference'])
     
-    payments = PaymentMaster.objects.all()[:100]
     for payment in payments:
         writer.writerow([
             payment.payment_date,
@@ -5266,7 +6527,7 @@ def export_payments_excel(request):
 # Finance - Receipts
 @login_required
 def receipt_list(request):
-    receipts = ReceiptMaster.objects.all().order_by('-receipt_date')
+    receipts = SalesInvoicePaid.objects.all().order_by('-receipt_date')
     
     search_query = request.GET.get('search', '')
     if search_query:
@@ -5287,25 +6548,9 @@ def receipt_list(request):
     return render(request, 'finance/receipt_list.html', context)
 
 @login_required
-def add_receipt(request):
-    if request.method == 'POST':
-        form = ReceiptForm(request.POST)
-        if form.is_valid():
-            receipt = form.save()
-            messages.success(request, f"Receipt of ₹{receipt.receipt_amount} added successfully!")
-            return redirect('receipt_list')
-    else:
-        form = ReceiptForm()
-    
-    context = {
-        'form': form,
-        'title': 'Add Receipt'
-    }
-    return render(request, 'finance/receipt_form.html', context)
-
 @login_required
 def edit_receipt(request, pk):
-    receipt = get_object_or_404(ReceiptMaster, receipt_id=pk)
+    receipt = get_object_or_404(receipt_id=pk)
     
     if request.method == 'POST':
         form = ReceiptForm(request.POST, instance=receipt)
@@ -5326,7 +6571,7 @@ def edit_receipt(request, pk):
 
 @login_required
 def delete_receipt(request, pk):
-    receipt = get_object_or_404(ReceiptMaster, receipt_id=pk)
+    receipt = get_object_or_404(receipt_id=pk)
     
     if request.method == 'POST':
         try:
@@ -5349,7 +6594,7 @@ def export_receipts_pdf(request):
     response = HttpResponse(content_type='text/html')
     response['Content-Disposition'] = 'inline; filename="receipts_report.html"'
     
-    receipts = ReceiptMaster.objects.all()[:100]
+    receipts = SalesInvoicePaid.objects.all()[:100]
     
     html_content = f"""
     <!DOCTYPE html>
@@ -5411,7 +6656,7 @@ def export_receipts_excel(request):
     writer = csv.writer(response)
     writer.writerow(['Date', 'Amount', 'Mode', 'Reference'])
     
-    receipts = ReceiptMaster.objects.all()[:100]
+    receipts = SalesInvoicePaid.objects.all()[:100]
     for receipt in receipts:
         writer.writerow([
             receipt.receipt_date,
@@ -5584,10 +6829,36 @@ def export_inventory_pdf(request):
                 print(f"Error processing product {product.product_name}: {e}")
                 continue
 
+        # Pharmacy details header
+        try:
+            pharmacy = Pharmacy_Details.objects.first()
+            if pharmacy:
+                title_style = styles['Heading1']
+                title_style.alignment = 1
+                if pharmacy.pharmaname:
+                    story.append(Paragraph(pharmacy.pharmaname.upper(), title_style))
+                info_style = styles['Normal']
+                info_style.alignment = 1
+                info_style.fontSize = 9
+                pharmacy_info = []
+                if pharmacy.proprietorname:
+                    pharmacy_info.append(f"Proprietor: {pharmacy.proprietorname}")
+                if pharmacy.proprietorcontact:
+                    pharmacy_info.append(f"Contact: {pharmacy.proprietorcontact}")
+                if pharmacy.proprietoremail:
+                    pharmacy_info.append(f"Email: {pharmacy.proprietoremail}")
+                if pharmacy.pharmaweburl:
+                    pharmacy_info.append(f"Website: {pharmacy.pharmaweburl}")
+                if pharmacy_info:
+                    story.append(Paragraph(" | ".join(pharmacy_info), info_style))
+                story.append(Spacer(1, 0.15*inch))
+        except:
+            pass
+        
         # Title
         title_style = styles['Heading1']
-        title_style.alignment = 1  # Center
-        title = Paragraph("Inventory Report", title_style)
+        title_style.alignment = 1
+        title = Paragraph("ALL PRODUCTS INVENTORY REPORT", title_style)
         story.append(title)
         
         # Date
@@ -5679,112 +6950,85 @@ def export_inventory_pdf(request):
 
 @login_required
 def export_inventory_excel(request):
-    import csv
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, PatternFill
     from django.http import HttpResponse
+    from io import BytesIO
     
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="inventory_report.csv"'
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Inventory Report'
     
-    writer = csv.writer(response)
-    writer.writerow(['Product Name', 'Company', 'Batch No', 'MRP', 'Value'])
+    row = 1
+    # Pharmacy details
+    try:
+        pharmacy = Pharmacy_Details.objects.first()
+        if pharmacy:
+            if pharmacy.pharmaname:
+                ws.merge_cells(f'A{row}:G{row}')
+                ws[f'A{row}'] = pharmacy.pharmaname.upper()
+                ws[f'A{row}'].font = Font(bold=True, size=14)
+                ws[f'A{row}'].alignment = Alignment(horizontal='center')
+                row += 1
+            pharmacy_info = []
+            if pharmacy.proprietorname:
+                pharmacy_info.append(f"Proprietor: {pharmacy.proprietorname}")
+            if pharmacy.proprietorcontact:
+                pharmacy_info.append(f"Contact: {pharmacy.proprietorcontact}")
+            if pharmacy.proprietoremail:
+                pharmacy_info.append(f"Email: {pharmacy.proprietoremail}")
+            if pharmacy.pharmaweburl:
+                pharmacy_info.append(f"Website: {pharmacy.pharmaweburl}")
+            if pharmacy_info:
+                ws.merge_cells(f'A{row}:G{row}')
+                ws[f'A{row}'] = " | ".join(pharmacy_info)
+                ws[f'A{row}'].font = Font(size=10)
+                ws[f'A{row}'].alignment = Alignment(horizontal='center')
+                row += 1
+            row += 1
+    except:
+        pass
     
+    # Title
+    ws.merge_cells(f'A{row}:G{row}')
+    ws[f'A{row}'] = 'ALL PRODUCTS INVENTORY REPORT'
+    ws[f'A{row}'].font = Font(bold=True, size=12)
+    ws[f'A{row}'].alignment = Alignment(horizontal='center')
+    row += 2
+    
+    # Headers
+    headers = ['Product Name', 'Company', 'Category', 'Batch No', 'Stock', 'MRP', 'Value']
+    for col, header in enumerate(headers, 1):
+        ws.cell(row=row, column=col, value=header)
+        ws.cell(row=row, column=col).font = Font(bold=True, color='FFFFFF')
+        ws.cell(row=row, column=col).fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
+        ws.cell(row=row, column=col).alignment = Alignment(horizontal='center')
+    row += 1
+    
+    # Data
     products = ProductMaster.objects.all()[:100]
     for product in products:
         stock_info = get_stock_status(product.productid)
         batch = PurchaseMaster.objects.filter(productid=product.productid).first()
-        writer.writerow([
-            product.product_name,
-            product.product_company,
-            batch.product_batch_no if batch else 'N/A',
-            stock_info.get('avg_mrp', 0),
-            stock_info['current_stock'] * stock_info.get('avg_mrp', 0)
-        ])
+        ws.cell(row=row, column=1, value=product.product_name)
+        ws.cell(row=row, column=2, value=product.product_company)
+        ws.cell(row=row, column=3, value=product.product_category or 'N/A')
+        ws.cell(row=row, column=4, value=batch.product_batch_no if batch else 'N/A')
+        ws.cell(row=row, column=5, value=stock_info['current_stock'])
+        ws.cell(row=row, column=6, value=stock_info.get('avg_mrp', 0))
+        ws.cell(row=row, column=7, value=stock_info['current_stock'] * stock_info.get('avg_mrp', 0))
+        row += 1
     
-    return response
-
-@login_required
-def export_products_pdf(request):
-    from django.http import HttpResponse
+    # Auto-adjust columns
+    for col in range(1, 8):
+        ws.column_dimensions[chr(64+col)].width = 20
     
-    response = HttpResponse(content_type='text/html')
-    response['Content-Disposition'] = 'inline; filename="products_report.html"'
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
     
-    products = ProductMaster.objects.all()[:100]
-    
-    html_content = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Products Report</title>
-        <style>
-            body {{ font-family: Arial, sans-serif; margin: 20px; }}
-            table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
-            th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
-            th {{ background-color: #f2f2f2; font-weight: bold; }}
-            h1 {{ color: #333; text-align: center; }}
-            @media print {{ body {{ margin: 0; }} }}
-        </style>
-    </head>
-    <body>
-        <h1>Products Report</h1>
-        <table>
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Product Name</th>
-                    <th>Company</th>
-                    <th>Batch No</th>
-                    <th>Category</th>
-                </tr>
-            </thead>
-            <tbody>
-    """
-    
-    for product in products:
-        batch = PurchaseMaster.objects.filter(productid=product.productid).first()
-        html_content += f"""
-                <tr>
-                    <td>{product.productid}</td>
-                    <td>{product.product_name}</td>
-                    <td>{product.product_company}</td>
-                    <td>{batch.product_batch_no if batch else 'N/A'}</td>
-                    <td>{product.product_category or 'N/A'}</td>
-                </tr>
-        """
-    
-    html_content += """
-            </tbody>
-        </table>
-        <script>window.print();</script>
-    </body>
-    </html>
-    """
-    
-    response.write(html_content)
-    return response
-
-@login_required
-def export_products_excel(request):
-    import csv
-    from django.http import HttpResponse
-    
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="products_report.csv"'
-    
-    writer = csv.writer(response)
-    writer.writerow(['ID', 'Product Name', 'Company', 'Batch No', 'Category'])
-    
-    products = ProductMaster.objects.all()[:100]
-    for product in products:
-        batch = PurchaseMaster.objects.filter(productid=product.productid).first()
-        writer.writerow([
-            product.productid,
-            product.product_name,
-            product.product_company,
-            batch.product_batch_no if batch else 'N/A',
-            product.product_category or 'N/A'
-        ])
-    
+    response = HttpResponse(buffer.read(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename="inventory_report.xlsx"'
     return response
 
 @login_required
@@ -7242,7 +8486,6 @@ def export_financial_excel(request):
 # Finance views
 @login_required
 def payment_list(request):
-    payments = PaymentMaster.objects.all().order_by('-payment_date')
     context = {
         'payments': payments,
         'title': 'Payments'
@@ -7267,7 +8510,7 @@ def add_payment(request):
 
 @login_required
 def receipt_list(request):
-    receipts = ReceiptMaster.objects.all().order_by('-receipt_date')
+    receipts = SalesInvoicePaid.objects.all().order_by('-receipt_date')
     context = {
         'receipts': receipts,
         'title': 'Receipts'
@@ -7277,17 +8520,24 @@ def receipt_list(request):
 @login_required
 def add_receipt(request):
     if request.method == 'POST':
-        receipt = ReceiptMaster.objects.create(
-            receipt_date=request.POST.get('receipt_date'),
-            receipt_amount=request.POST.get('receipt_amount'),
-            receipt_method=request.POST.get('receipt_method'),
-            receipt_description=request.POST.get('receipt_description'),
-            receipt_reference=request.POST.get('receipt_reference')
+        # Create a sales invoice payment record instead
+        receipt = SalesInvoicePaid.objects.create(
+            sales_ip_invoice_no_id=request.POST.get('invoice_id'),
+            sales_payment_amount=request.POST.get('receipt_amount'),
+            sales_payment_mode=request.POST.get('receipt_method'),
+            sales_payment_ref_no=request.POST.get('receipt_reference'),
+            sales_payment_date=request.POST.get('receipt_date')
         )
         messages.success(request, 'Receipt added successfully!')
-        return redirect('receipt_list')
+        return redirect('sales_invoice_list')
     
-    context = {'title': 'Add Receipt'}
+    # Get all sales invoices for dropdown
+    invoices = SalesInvoiceMaster.objects.all().order_by('-sales_invoice_date')
+    
+    context = {
+        'title': 'Add Receipt',
+        'invoices': invoices
+    }
     return render(request, 'finance/receipt_form.html', context)
 
 @login_required
@@ -7534,73 +8784,75 @@ def get_batch_details(request):
 
 @login_required
 def get_product_batch_selector(request):
-    """API endpoint for Alt+W batch selection dialog"""
+    """API endpoint for Alt+W batch selection dialog - fetches from both Purchase and Challan"""
     product_id = request.GET.get('product_id')
     
     if not product_id:
         return JsonResponse({'error': 'Product ID is required'}, status=400)
     
     try:
-        # Get all batches for this product with details
-        batches = PurchaseMaster.objects.filter(
-            productid=product_id
-        ).values(
-            'product_batch_no',
-            'product_expiry', 
-            'product_MRP'
-        ).distinct().order_by('product_batch_no')
+        from .models import SupplierChallanMaster
+        batch_dict = {}
         
-        batch_options = []
-        for batch in batches:
-            # Get stock for each batch
-            batch_quantity, is_available = get_batch_stock_status(
-                product_id, batch['product_batch_no']
-            )
+        # 1. Get batches from PurchaseMaster
+        purchase_batches = PurchaseMaster.objects.filter(
+            productid=product_id
+        ).values('product_batch_no', 'product_expiry', 'product_MRP').distinct()
+        
+        for batch in purchase_batches:
+            batch_no = batch['product_batch_no']
+            batch_quantity, is_available = get_batch_stock_status(product_id, batch_no)
             
-            # Get sale rates if available
             try:
-                sale_rate = SaleRateMaster.objects.get(
-                    productid=product_id,
-                    product_batch_no=batch['product_batch_no']
-                )
-                rates = {
-                    'rate_A': float(sale_rate.rate_A or 0),
-                    'rate_B': float(sale_rate.rate_B or 0), 
-                    'rate_C': float(sale_rate.rate_C or 0)
-                }
+                sale_rate = SaleRateMaster.objects.get(productid=product_id, product_batch_no=batch_no)
+                rates = {'rate_A': float(sale_rate.rate_A or 0), 'rate_B': float(sale_rate.rate_B or 0), 'rate_C': float(sale_rate.rate_C or 0)}
             except SaleRateMaster.DoesNotExist:
                 rates = {'rate_A': 0, 'rate_B': 0, 'rate_C': 0}
             
-            # Handle expiry date formatting
-            expiry_display = 'N/A'
-            if batch['product_expiry']:
-                try:
-                    if hasattr(batch['product_expiry'], 'strftime'):
-                        expiry_display = batch['product_expiry'].strftime('%d/%m/%Y')
-                    else:
-                        expiry_display = str(batch['product_expiry'])
-                except:
-                    expiry_display = str(batch['product_expiry'])
+            expiry_display = str(batch['product_expiry']) if batch['product_expiry'] else 'N/A'
             
-            batch_options.append({
-                'batch_no': batch['product_batch_no'],
+            batch_dict[batch_no] = {
+                'batch_no': batch_no,
                 'expiry': expiry_display,
                 'mrp': float(batch['product_MRP'] or 0),
                 'stock': batch_quantity,
                 'is_available': is_available,
                 'rates': rates
-            })
+            }
         
-        return JsonResponse({
-            'success': True,
-            'batches': batch_options
-        })
+        # 2. Get batches from SupplierChallanMaster
+        challan_batches = SupplierChallanMaster.objects.filter(
+            product_id=product_id
+        ).values('product_batch_no', 'product_expiry', 'product_mrp').distinct()
+        
+        for batch in challan_batches:
+            batch_no = batch['product_batch_no']
+            if batch_no in batch_dict:
+                continue
+            
+            batch_quantity, is_available = get_batch_stock_status(product_id, batch_no)
+            
+            try:
+                sale_rate = SaleRateMaster.objects.get(productid=product_id, product_batch_no=batch_no)
+                rates = {'rate_A': float(sale_rate.rate_A or 0), 'rate_B': float(sale_rate.rate_B or 0), 'rate_C': float(sale_rate.rate_C or 0)}
+            except SaleRateMaster.DoesNotExist:
+                rates = {'rate_A': 0, 'rate_B': 0, 'rate_C': 0}
+            
+            expiry_display = str(batch['product_expiry']) if batch['product_expiry'] else 'N/A'
+            
+            batch_dict[batch_no] = {
+                'batch_no': batch_no,
+                'expiry': expiry_display,
+                'mrp': float(batch['product_mrp'] or 0),
+                'stock': batch_quantity,
+                'is_available': is_available,
+                'rates': rates
+            }
+        
+        return JsonResponse({'success': True, 'batches': list(batch_dict.values())})
         
     except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        }, status=500)
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 @login_required
 def search_products_api(request):
@@ -7675,7 +8927,7 @@ def get_customer_rate_info(request):
 # Missing finance view functions
 @login_required
 def edit_payment(request, pk):
-    payment = get_object_or_404(PaymentMaster, payment_id=pk)
+    payment = get_object_or_404(payment_id=pk)
     
     if request.method == 'POST':
         payment.payment_date = request.POST.get('payment_date')
@@ -7695,7 +8947,7 @@ def edit_payment(request, pk):
 
 @login_required
 def delete_payment(request, pk):
-    payment = get_object_or_404(PaymentMaster, payment_id=pk)
+    payment = get_object_or_404(payment_id=pk)
     
     if request.method == 'POST':
         payment.delete()
@@ -7710,7 +8962,7 @@ def delete_payment(request, pk):
 
 @login_required
 def edit_receipt(request, pk):
-    receipt = get_object_or_404(ReceiptMaster, receipt_id=pk)
+    receipt = get_object_or_404(receipt_id=pk)
     
     if request.method == 'POST':
         receipt.receipt_date = request.POST.get('receipt_date')
@@ -7730,7 +8982,7 @@ def edit_receipt(request, pk):
 
 @login_required
 def delete_receipt(request, pk):
-    receipt = get_object_or_404(ReceiptMaster, receipt_id=pk)
+    receipt = get_object_or_404(receipt_id=pk)
     
     if request.method == 'POST':
         receipt.delete()
@@ -8669,8 +9921,7 @@ def export_financial_excel(request):
 # Finance payment function
 @login_required
 def payment_list(request):
-    payments = PaymentMaster.objects.all().order_by('-payment_date')
-    
+        
     paginator = Paginator(payments, 20)
     page_number = request.GET.get('page')
     payments = paginator.get_page(page_number)
@@ -8686,7 +9937,6 @@ def payment_list(request):
 def add_payment(request):
     from django.shortcuts import render, get_object_or_404, redirect
     from django.urls import reverse
-    from .models import PaymentMaster
     from .forms import PaymentForm
     if request.method == "POST":
         form = PaymentForm(request.POST)
@@ -8708,9 +9958,8 @@ def add_payment(request):
 def edit_payment(request, payment_id):
     from django.shortcuts import render, get_object_or_404, redirect
     from django.urls import reverse
-    from .models import PaymentMaster
     from .forms import PaymentForm
-    payment = get_object_or_404(PaymentMaster, id=payment_id)
+    payment = get_object_or_404(id=payment_id)
     title = "Edit Payment"
 
     if request.method == "POST":
@@ -8752,8 +10001,7 @@ def payment_confirm_delete(request):
 
 def export_payments_excel(request):
     import openpyxl
-    from .models import PaymentMaster
-    # Create workbook and worksheet
+        # Create workbook and worksheet
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Payments"
@@ -8764,8 +10012,7 @@ def export_payments_excel(request):
     ])
 
     # Fetch all payments
-    payments = PaymentMaster.objects.all()
-
+    
     for payment in payments:
         ws.append([
             payment.payment_id,
@@ -8792,8 +10039,7 @@ def export_payments_excel(request):
 def export_payments_pdf(request):
     from reportlab.lib.pagesizes import A4
     from reportlab.pdfgen import canvas
-    from .models import PaymentMaster
-    # Create HTTP response with PDF headers
+        # Create HTTP response with PDF headers
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = 'attachment; filename="payments.pdf"'
 
@@ -8814,8 +10060,7 @@ def export_payments_pdf(request):
         pdf.drawString(x, y, header)
 
     # Fetch payments
-    payments = PaymentMaster.objects.all()
-    pdf.setFont("Helvetica", 10)
+        pdf.setFont("Helvetica", 10)
     y -= 20
 
     for payment in payments:
@@ -8842,7 +10087,7 @@ def export_payments_pdf(request):
 #finance recipte function
 @login_required
 def receipt_list(request):
-    receipts = ReceiptMaster.objects.all().order_by('-receipt_date')
+    receipts = SalesInvoicePaid.objects.all().order_by('-receipt_date')
     
     paginator = Paginator(receipts, 20)
     page_number = request.GET.get('page')
@@ -8856,29 +10101,7 @@ def receipt_list(request):
 
 
 
-@login_required
-def add_receipt(request):
-    from django.shortcuts import render, redirect
-    from django.contrib.auth.decorators import login_required
-    from .models import ReceiptMaster
-    from .forms import ReceiptForm
-    from datetime import datetime
-
-    title = "Add Receipt"
-
-    if request.method == "POST":
-        form = ReceiptForm(request.POST)
-        if form.is_valid():
-            form.save()
-            return redirect('receipt_list')  # Redirect to the list view after saving
-    else:
-        form = ReceiptForm(initial={'receipt_date': datetime.now()})
-
-    context = {
-        'form': form,
-        'title': title,
-    }
-    return render(request, 'finance/receipt_form.html', context)
+# Removed duplicate add_receipt function - using the one above instead
 
 
 
@@ -9278,7 +10501,7 @@ def export_payments_pdf(request, payment_type=None, start_date=None, end_date=No
     from reportlab.lib import colors
     from reportlab.lib.units import inch
     from io import BytesIO
-    from .models import PaymentMaster, ReceiptMaster, InvoicePaid, SalesInvoicePaid
+    from .models import InvoicePaid, SalesInvoicePaid
     from datetime import datetime, timedelta
     
     # Get filter parameters from request
@@ -9396,10 +10619,8 @@ def export_payments_pdf(request, payment_type=None, start_date=None, end_date=No
             })
             total_amount += payment.payment_amount
         
-        # Receipts (ReceiptMaster)
-        receipts = ReceiptMaster.objects.filter(
-            receipt_date__range=[start_date, end_date]
-        )
+        # Receipts (using SalesInvoicePaid)
+        receipts = SalesInvoicePaid.objects.all()
         
         for receipt in receipts:
             party_name = receipt.customer.customer_name if receipt.customer else 'N/A'
@@ -9607,9 +10828,7 @@ def export_receipts_pdf(request):
     
     # Other Receipts
     if receipt_type in ['all', 'other']:
-        other_receipts = ReceiptMaster.objects.filter(
-            receipt_date__range=[start_date, end_date]
-        )
+        other_receipts = SalesInvoicePaid.objects.all()
         
         if customer_id:
             other_receipts = other_receipts.filter(customer_id=customer_id)
@@ -9793,9 +11012,7 @@ def export_receipts_excel(request):
     
     # Other Receipts
     if receipt_type in ['all', 'other']:
-        other_receipts = ReceiptMaster.objects.filter(
-            receipt_date__range=[start_date, end_date]
-        )
+        other_receipts = SalesInvoicePaid.objects.all()
         
         if customer_id:
             other_receipts = other_receipts.filter(customer_id=customer_id)
@@ -10040,4 +11257,500 @@ def export_products_html(request):
     
     response = HttpResponse(html_content, content_type='text/html')
     response['Content-Disposition'] = 'attachment; filename="products_report.html"'
+    return response
+
+
+@login_required
+def inventory_search_suggestions(request):
+    query = request.GET.get('q', '').strip()
+    if len(query) < 2:
+        return JsonResponse({'suggestions': []})
+    
+    products = ProductMaster.objects.filter(
+        Q(product_name__istartswith=query) |
+        Q(product_company__istartswith=query) |
+        Q(product_salt__istartswith=query)
+    ).values('product_name', 'product_company')[:10]
+    
+    suggestions = [f"{p['product_name']} - {p['product_company']}" for p in products]
+    return JsonResponse({'suggestions': list(set(suggestions))})
+
+
+@login_required
+def delete_invoice_series(request, series_id):
+    """Delete invoice series"""
+    if request.method == 'POST':
+        try:
+            series = InvoiceSeries.objects.get(series_id=series_id)
+            series_name = series.series_name
+            series.delete()
+            return JsonResponse({'success': True, 'message': f'Series "{series_name}" deleted successfully'})
+        except InvoiceSeries.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Series not found'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+    return JsonResponse({'success': False, 'error': 'Invalid request method'})
+
+@login_required
+def get_suppliers_api(request):
+    """API endpoint to get all suppliers for the payment form dialog"""
+    try:
+        suppliers = SupplierMaster.objects.all().order_by('supplier_name')
+        suppliers_data = []
+        
+        for supplier in suppliers:
+            suppliers_data.append({
+                'supplierid': supplier.supplierid,
+                'supplier_name': supplier.supplier_name,
+                'supplier_mobile': supplier.supplier_mobile,
+                'supplier_address': supplier.supplier_address,
+                'supplier_emailid': supplier.supplier_emailid
+            })
+        
+        return JsonResponse(suppliers_data, safe=False)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+@login_required
+def get_suppliers_with_invoices(request):
+    """Get suppliers with their pending invoices for payment form"""
+    from core.models import SupplierMaster, InvoiceMaster
+    from django.db import models
+    
+    try:
+        suppliers = SupplierMaster.objects.all().order_by('supplier_name')
+        result = []
+        
+        for supplier in suppliers:
+            # Get pending invoices for this supplier
+            invoices = InvoiceMaster.objects.filter(
+                supplierid=supplier,
+                invoice_paid__lt=models.F('invoice_total')
+            ).values('invoiceid', 'invoice_no', 'invoice_total', 'invoice_paid')
+            
+            invoice_list = []
+            for invoice in invoices:
+                balance_due = invoice['invoice_total'] - invoice['invoice_paid']
+                if balance_due > 0:
+                    invoice_list.append({
+                        'invoice_id': invoice['invoiceid'],
+                        'invoice_no': invoice['invoice_no'],
+                        'balance_due': float(balance_due)
+                    })
+            
+            result.append({
+                'supplierid': supplier.supplierid,
+                'supplier_name': supplier.supplier_name,
+                'supplier_mobile': supplier.supplier_mobile,
+                'supplier_address': supplier.supplier_address,
+                'invoices': invoice_list
+            })
+        
+        return JsonResponse(result, safe=False)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+def payment_list(request):
+    payments = InvoicePaid.objects.select_related('ip_invoiceid__supplierid').all().order_by('-payment_date')
+    
+    # Search functionality
+    search_query = request.GET.get('search', '')
+    if search_query:
+        payments = payments.filter(
+            Q(ip_invoiceid__invoice_no__icontains=search_query) |
+            Q(ip_invoiceid__supplierid__supplier_name__icontains=search_query) |
+            Q(payment_ref_no__icontains=search_query) |
+            Q(payment_mode__icontains=search_query)
+        )
+    
+    # Filter by date range
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    if start_date and end_date:
+        try:
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+            payments = payments.filter(payment_date__range=[start_date, end_date])
+        except ValueError:
+            messages.error(request, "Invalid date format. Please use YYYY-MM-DD.")
+    
+    # Calculate total amount
+    total_amount = payments.aggregate(Sum('payment_amount'))['payment_amount__sum'] or 0
+    
+    # Add payment status and balance information to each payment
+    for payment in payments:
+        invoice = payment.ip_invoiceid
+        balance = invoice.invoice_total - invoice.invoice_paid
+        
+        if balance <= 0.01:
+            payment.current_status = 'Paid'
+        elif invoice.invoice_paid > 0:
+            payment.current_status = 'Partial'
+        else:
+            payment.current_status = 'Unpaid'
+        
+        payment.current_balance = balance
+    
+    # Pagination
+    paginator = Paginator(payments, 15)
+    page_number = request.GET.get('page')
+    payments = paginator.get_page(page_number)
+    
+    context = {
+        'payments': payments,
+        'search_query': search_query,
+        'start_date': start_date if 'start_date' in locals() else '',
+        'end_date': end_date if 'end_date' in locals() else '',
+        'total_amount': total_amount,
+        'title': 'Payment List'
+    }
+    return render(request, 'finance/payment_list.html', context)
+
+@login_required
+def edit_payment(request, pk):
+    payment = get_object_or_404(InvoicePaid, pk=pk)
+    original_amount = payment.payment_amount
+    
+    if request.method == 'POST':
+        form = PaymentForm(request.POST, instance=payment)
+        if form.is_valid():
+            with transaction.atomic():
+                new_payment = form.save(commit=False)
+                difference = new_payment.payment_amount - original_amount
+                
+                # Check if new amount would exceed the invoice total
+                invoice = payment.ip_invoiceid
+                if invoice.invoice_paid + difference > invoice.invoice_total:
+                    messages.error(request, "Payment amount cannot exceed the invoice total.")
+                    return redirect('edit_payment', pk=pk)
+                
+                # Update payment
+                new_payment.save()
+                
+                # Update invoice paid amount
+                invoice.invoice_paid += difference
+                
+                # Update payment status
+                new_balance = invoice.invoice_total - invoice.invoice_paid
+                if new_balance <= 0.01:
+                    invoice.payment_status = 'paid'
+                elif invoice.invoice_paid > 0:
+                    invoice.payment_status = 'partial'
+                else:
+                    invoice.payment_status = 'unpaid'
+                
+                invoice.save()
+                
+                # Log the update
+                print(f"Payment updated: Invoice #{invoice.invoice_no}, Amount change: ₹{difference}, New Balance: ₹{new_balance}")
+            
+            messages.success(request, f"Payment updated successfully! Invoice balance updated.")
+            return redirect('payment_list')
+    else:
+        form = PaymentForm(instance=payment)
+    
+    context = {
+        'form': form,
+        'payment': payment,
+        'title': 'Edit Payment'
+    }
+    return render(request, 'finance/payment_form.html', context)
+
+@login_required
+def delete_payment(request, pk):
+    payment = get_object_or_404(InvoicePaid, pk=pk)
+    
+    if request.method == 'POST':
+        with transaction.atomic():
+            # Store invoice and payment amount before deletion
+            invoice = payment.ip_invoiceid
+            payment_amount = payment.payment_amount
+            
+            # Delete payment first
+            payment.delete()
+            
+            # Recalculate invoice_paid from remaining payments
+            from django.db.models import Sum
+            remaining_payments = InvoicePaid.objects.filter(ip_invoiceid=invoice)
+            total_paid = remaining_payments.aggregate(Sum('payment_amount'))['payment_amount__sum'] or 0
+            invoice.invoice_paid = total_paid
+            
+            # Update payment status
+            new_balance = invoice.invoice_total - invoice.invoice_paid
+            if new_balance <= 0.01:
+                invoice.payment_status = 'paid'
+            elif invoice.invoice_paid > 0:
+                invoice.payment_status = 'partial'
+            else:
+                invoice.payment_status = 'pending'
+            
+            invoice.save()
+            
+            # Log the deletion
+            print(f"Payment deleted: Invoice #{invoice.invoice_no}, Amount: ₹{payment_amount}, New Balance: ₹{new_balance}")
+        
+        messages.success(request, "Payment deleted successfully! Invoice balance updated.")
+        return redirect('payment_list')
+    
+    context = {
+        'payment': payment,
+        'title': 'Delete Payment'
+    }
+    return render(request, 'finance/payment_confirm_delete.html', context)
+
+@login_required
+def search_supplier_invoices(request):
+    query = request.GET.get('q', '').strip()
+    results = []
+    
+    if len(query) >= 2:
+        # Search suppliers and their invoices
+        suppliers = SupplierMaster.objects.filter(
+            supplier_name__icontains=query
+        )[:10]
+        
+        for supplier in suppliers:
+            # Get unpaid or partially paid invoices for this supplier
+            invoices = InvoiceMaster.objects.filter(
+                supplierid=supplier,
+                invoice_paid__lt=F('invoice_total')
+            ).order_by('-invoice_date')[:5]
+            
+            for invoice in invoices:
+                balance = invoice.invoice_total - invoice.invoice_paid
+                if balance > 0:  # Only show invoices with outstanding balance
+                    # Determine payment status
+                    if invoice.invoice_paid == 0:
+                        status = 'Unpaid'
+                    elif balance <= 0.01:
+                        status = 'Paid'
+                    else:
+                        status = 'Partial'
+                    
+                    results.append({
+                        'id': invoice.invoiceid,
+                        'supplier_name': supplier.supplier_name,
+                        'invoice_no': invoice.invoice_no,
+                        'invoice_date': invoice.invoice_date.strftime('%d-%m-%Y'),
+                        'total_amount': float(invoice.invoice_total),
+                        'paid_amount': float(invoice.invoice_paid),
+                        'balance_amount': float(balance),
+                        'payment_status': status,
+                        'text': f"{supplier.supplier_name} - Invoice #{invoice.invoice_no} (₹{balance:.2f} due)"
+                    })
+    
+    return JsonResponse(results, safe=False)
+
+@login_required
+def export_payments_pdf(request):
+    """Export payments to PDF"""
+    from django.template.loader import render_to_string
+    
+    # Get filtered payments
+    payments = InvoicePaid.objects.select_related('ip_invoiceid__supplierid').all().order_by('-payment_date')
+    
+    # Apply filters
+    search_query = request.GET.get('search', '')
+    if search_query:
+        payments = payments.filter(
+            Q(ip_invoiceid__invoice_no__icontains=search_query) |
+            Q(ip_invoiceid__supplierid__supplier_name__icontains=search_query) |
+            Q(payment_ref_no__icontains=search_query)
+        )
+    
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    if start_date and end_date:
+        try:
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+            payments = payments.filter(payment_date__range=[start_date, end_date])
+        except ValueError:
+            pass
+    
+    total_amount = payments.aggregate(Sum('payment_amount'))['payment_amount__sum'] or 0
+    
+    html_content = render_to_string('finance/payments_export_pdf.html', {
+        'payments': payments,
+        'total_amount': total_amount,
+        'title': 'Payments Report',
+        'start_date': start_date if 'start_date' in locals() else None,
+        'end_date': end_date if 'end_date' in locals() else None,
+    })
+    
+    response = HttpResponse(html_content, content_type='text/html')
+    response['Content-Disposition'] = 'attachment; filename="payments_report.html"'
+    return response
+
+@login_required
+def export_payments_excel(request):
+    """Export payments to Excel"""
+    import csv
+    
+    # Get filtered payments
+    payments = InvoicePaid.objects.select_related('ip_invoiceid__supplierid').all().order_by('-payment_date')
+    
+    # Apply filters
+    search_query = request.GET.get('search', '')
+    if search_query:
+        payments = payments.filter(
+            Q(ip_invoiceid__invoice_no__icontains=search_query) |
+            Q(ip_invoiceid__supplierid__supplier_name__icontains=search_query) |
+            Q(payment_ref_no__icontains=search_query)
+        )
+    
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    if start_date and end_date:
+        try:
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+            payments = payments.filter(payment_date__range=[start_date, end_date])
+        except ValueError:
+            pass
+    
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="payments_export.csv"'
+    
+    writer = csv.writer(response)
+    writer.writerow(['Date', 'Amount', 'Mode', 'Supplier', 'Invoice No', 'Reference', 'Balance'])
+    
+    for payment in payments:
+        invoice = payment.ip_invoiceid
+        balance = invoice.invoice_total - invoice.invoice_paid
+        writer.writerow([
+            payment.payment_date.strftime('%d-%m-%Y'),
+            payment.payment_amount,
+            payment.payment_mode,
+            invoice.supplierid.supplier_name,
+            invoice.invoice_no,
+            payment.payment_ref_no or '',
+            balance
+        ])
+    
+    return response
+
+@login_required
+def receipt_list(request):
+    receipts = SalesInvoicePaid.objects.all().order_by('-receipt_date')
+    
+    # Search functionality
+    search_query = request.GET.get('search', '')
+    if search_query:
+        receipts = receipts.filter(
+            Q(customer__customer_name__icontains=search_query) |
+            Q(receipt_reference__icontains=search_query) |
+            Q(receipt_method__icontains=search_query)
+        )
+    
+    # Filter by date range
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    if start_date and end_date:
+        try:
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+            receipts = receipts.filter(receipt_date__range=[start_date, end_date])
+        except ValueError:
+            messages.error(request, "Invalid date format. Please use YYYY-MM-DD.")
+    
+    # Calculate total amount
+    total_amount = receipts.aggregate(Sum('receipt_amount'))['receipt_amount__sum'] or 0
+    
+    # Pagination
+    paginator = Paginator(receipts, 15)
+    page_number = request.GET.get('page')
+    receipts = paginator.get_page(page_number)
+    
+    context = {
+        'receipts': receipts,
+        'search_query': search_query,
+        'start_date': start_date if 'start_date' in locals() else '',
+        'end_date': end_date if 'end_date' in locals() else '',
+        'total_amount': total_amount,
+        'title': 'Receipt List'
+    }
+    return render(request, 'finance/receipt_list.html', context)
+
+@login_required
+@login_required
+def edit_receipt(request, pk):
+    receipt = get_object_or_404(receipt_id=pk)
+    
+    if request.method == 'POST':
+        form = ReceiptForm(request.POST, instance=receipt)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Receipt updated successfully!")
+            return redirect('receipt_list')
+    else:
+        form = ReceiptForm(instance=receipt)
+    
+    context = {
+        'form': form,
+        'receipt': receipt,
+        'title': 'Edit Receipt'
+    }
+    return render(request, 'finance/receipt_form.html', context)
+
+@login_required
+def delete_receipt(request, pk):
+    receipt = get_object_or_404(receipt_id=pk)
+    
+    if request.method == 'POST':
+        receipt.delete()
+        messages.success(request, "Receipt deleted successfully!")
+        return redirect('receipt_list')
+    
+    context = {
+        'receipt': receipt,
+        'title': 'Delete Receipt'
+    }
+    return render(request, 'finance/receipt_confirm_delete.html', context)
+
+@login_required
+def export_receipts_pdf(request):
+    """Export receipts to PDF"""
+    from django.template.loader import render_to_string
+    
+    receipts = SalesInvoicePaid.objects.all().order_by('-receipt_date')
+    total_amount = receipts.aggregate(Sum('receipt_amount'))['receipt_amount__sum'] or 0
+    
+    html_content = render_to_string('finance/receipts_export_pdf.html', {
+        'receipts': receipts,
+        'total_amount': total_amount,
+        'title': 'Receipts Report'
+    })
+    
+    response = HttpResponse(html_content, content_type='text/html')
+    response['Content-Disposition'] = 'attachment; filename="receipts_report.html"'
+    return response
+
+@login_required
+def export_receipts_excel(request):
+    """Export receipts to Excel"""
+    import csv
+    
+    receipts = SalesInvoicePaid.objects.all().order_by('-receipt_date')
+    
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="receipts_export.csv"'
+    
+    writer = csv.writer(response)
+    writer.writerow(['Date', 'Amount', 'Method', 'Customer', 'Reference', 'Description'])
+    
+    for receipt in receipts:
+        writer.writerow([
+            receipt.receipt_date.strftime('%d-%m-%Y'),
+            receipt.receipt_amount,
+            receipt.receipt_method,
+            receipt.customer.customer_name if receipt.customer else '',
+            receipt.receipt_reference or '',
+            receipt.receipt_description or ''
+        ])
+    
     return response

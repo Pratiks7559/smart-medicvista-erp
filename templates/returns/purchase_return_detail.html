@@ -143,6 +143,7 @@
                 <div class="row">
                     <div class="col-md-8">
                         <div class="summary-details">
+                            {% if return_invoice.return_charges > 0 %}
                             <div class="summary-row">
                                 <span class="summary-label">Items Total:</span>
                                 <span class="summary-value">₹{{ items_total|floatformat:2 }}</span>
@@ -152,9 +153,15 @@
                                 <span class="summary-value">₹{{ return_invoice.return_charges|floatformat:2 }}</span>
                             </div>
                             <div class="summary-row total-row">
+                                <span class="summary-label">Grand Total:</span>
+                                <span class="summary-value">₹{{ return_invoice.returninvoice_total|floatformat:2 }}</span>
+                            </div>
+                            {% else %}
+                            <div class="summary-row total-row">
                                 <span class="summary-label">Total Amount:</span>
                                 <span class="summary-value">₹{{ return_invoice.returninvoice_total|floatformat:2 }}</span>
                             </div>
+                            {% endif %}
                             <div class="summary-row">
                                 <span class="summary-label">Amount Received:</span>
                                 <span class="summary-value">₹{{ return_invoice.returninvoice_paid|floatformat:2 }}</span>
@@ -169,12 +176,12 @@
                     </div>
                     <div class="col-md-4">
                         <div class="summary-actions">
-                            <button class="btn btn-primary btn-block mb-2">
+                            <a href="{% url 'print_purchase_return_receipt' return_id=return_invoice.returninvoiceid %}" target="_blank" class="btn btn-primary btn-block mb-2">
                                 <i class="fas fa-print"></i> Print Return
-                            </button>
-                            <button class="btn btn-info btn-block mb-2">
+                            </a>
+                            <a href="{% url 'print_purchase_return_receipt' return_id=return_invoice.returninvoiceid %}" target="_blank" class="btn btn-info btn-block mb-2">
                                 <i class="fas fa-download"></i> Download PDF
-                            </button>
+                            </a>
                             {% if request.user.user_type == 'admin' %}
                             <a href="{% url 'delete_purchase_return' pk=return_invoice.returninvoiceid %}" 
                                class="btn btn-danger btn-block">
@@ -945,7 +952,8 @@ function openQuickProductSearchForEdit() {
 }
 
 function quickSearchProductsForEdit(event) {
-    const searchTerm = event.target.value.toLowerCase();
+    const originalSearchTerm = event.target.value;
+    const searchTerm = originalSearchTerm.toLowerCase();
     const resultsDiv = document.getElementById('quickResultsEdit');
     
     // Skip navigation keys - handled in keydown event
@@ -954,7 +962,7 @@ function quickSearchProductsForEdit(event) {
     }
     
     // Handle search input
-    if (searchTerm.length < 2) {
+    if (originalSearchTerm.length < 2) {
         resultsDiv.innerHTML = '<div class="quick-hint">Type at least 2 characters...</div>';
         return;
     }
@@ -966,31 +974,43 @@ function quickSearchProductsForEdit(event) {
         company: '{{ product.product_company|escapejs }}'
     },{% endfor %}];
     
-    // Case-sensitive search based on original input
-    const originalSearchTerm = event.target.value;
-    
+    // Filter products that START with the search term (first 2+ letters)
     const filtered = products.filter(p => {
-        // Check if search term matches case-sensitively
-        const nameMatch = p.name.includes(originalSearchTerm) || p.name.toLowerCase().includes(searchTerm);
-        const companyMatch = p.company.includes(originalSearchTerm) || p.company.toLowerCase().includes(searchTerm);
+        // Primary filter: starts with search term (case-sensitive first, then case-insensitive)
+        const exactStartsName = p.name.startsWith(originalSearchTerm);
+        const exactStartsCompany = p.company.startsWith(originalSearchTerm);
+        const startsName = p.name.toLowerCase().startsWith(searchTerm);
+        const startsCompany = p.company.toLowerCase().startsWith(searchTerm);
         
-        // Prioritize exact case matches
-        const exactCaseMatch = p.name.includes(originalSearchTerm) || p.company.includes(originalSearchTerm);
-        
-        return nameMatch || companyMatch;
+        return exactStartsName || exactStartsCompany || startsName || startsCompany;
     }).sort((a, b) => {
-        // Sort by exact case match first, then alphabetically
-        const aExactMatch = a.name.includes(originalSearchTerm) || a.company.includes(originalSearchTerm);
-        const bExactMatch = b.name.includes(originalSearchTerm) || b.company.includes(originalSearchTerm);
+        // Priority scoring for "starts with" matches
+        let aScore = 0;
+        let bScore = 0;
         
-        if (aExactMatch && !bExactMatch) return -1;
-        if (!aExactMatch && bExactMatch) return 1;
+        // Exact case "starts with" gets highest priority (100 points)
+        if (a.name.startsWith(originalSearchTerm)) aScore += 100;
+        if (a.company.startsWith(originalSearchTerm)) aScore += 90;
+        if (b.name.startsWith(originalSearchTerm)) bScore += 100;
+        if (b.company.startsWith(originalSearchTerm)) bScore += 90;
         
+        // Case-insensitive "starts with" gets medium priority (50 points)
+        if (a.name.toLowerCase().startsWith(searchTerm)) aScore += 50;
+        if (a.company.toLowerCase().startsWith(searchTerm)) aScore += 40;
+        if (b.name.toLowerCase().startsWith(searchTerm)) bScore += 50;
+        if (b.company.toLowerCase().startsWith(searchTerm)) bScore += 40;
+        
+        // Sort by score (higher score first)
+        if (aScore !== bScore) {
+            return bScore - aScore;
+        }
+        
+        // If scores are equal, sort alphabetically
         return a.name.localeCompare(b.name);
-    }).slice(0, 8); // Show more results
+    });
     
     if (filtered.length === 0) {
-        resultsDiv.innerHTML = '<div class="no-results">No products found</div>';
+        resultsDiv.innerHTML = '<div class="no-results">No products starting with "' + originalSearchTerm + '" found</div>';
         return;
     }
     
@@ -1006,11 +1026,12 @@ function quickSearchProductsForEdit(event) {
 function quickSelectEditReturnProduct(productId, productName) {
     const tbody = document.getElementById('editReturnProductRows');
     const row = document.createElement('tr');
-    row.id = `editReturnRow_${editReturnProductRowIndex}`;
+    const currentRowIndex = editReturnProductRowIndex;
+    row.id = `editReturnRow_${currentRowIndex}`;
     
     row.innerHTML = `
         <td>
-            <button type="button" class="btn btn-sm btn-info" onclick="openBatchSelectorForEdit(${editReturnProductRowIndex})" title="Select Batch (Alt+W)">
+            <button type="button" class="btn btn-sm btn-info" onclick="openBatchSelectorForEdit(${currentRowIndex})" title="Select Batch (Alt+W)">
                 <i class="fas fa-box"></i> <small>Alt+W</small>
             </button>
             <input type="hidden" class="product-id" value="${productId}">
@@ -1019,30 +1040,27 @@ function quickSelectEditReturnProduct(productId, productName) {
         <td><input type="text" class="form-control form-control-sm batch-no" placeholder="Enter batch number"></td>
         <td><input type="text" class="form-control form-control-sm expiry" placeholder="Auto-filled"></td>
         <td><input type="number" class="form-control form-control-sm mrp" step="0.01" placeholder="Auto-filled"></td>
-        <td><input type="number" class="form-control form-control-sm return-rate" step="0.01" onchange="calculateEditReturnRowTotal(${editReturnProductRowIndex})" placeholder="Return rate" required></td>
+        <td><input type="number" class="form-control form-control-sm return-rate" step="0.01" onchange="calculateEditReturnRowTotal(${currentRowIndex})" placeholder="Return rate" required></td>
         <td>
-            <input type="number" class="form-control form-control-sm return-qty" step="0.01" oninput="validateEditReturnStock(${editReturnProductRowIndex})" onchange="validateEditReturnStock(${editReturnProductRowIndex})" placeholder="Quantity" required>
+            <input type="number" class="form-control form-control-sm return-qty" step="0.01" oninput="validateEditReturnStock(${currentRowIndex})" onchange="validateEditReturnStock(${currentRowIndex})" placeholder="Quantity" required>
             <div class="stock-info-edit" style="display: none;"></div>
             <div class="stock-error-edit" style="display: none;"></div>
         </td>
-        <td><input type="number" class="form-control form-control-sm scheme" step="0.01" onchange="calculateEditReturnRowTotal(${editReturnProductRowIndex})" placeholder="Scheme"></td>
-        <td><input type="number" class="form-control form-control-sm charges" step="0.01" onchange="calculateEditReturnRowTotal(${editReturnProductRowIndex})" placeholder="Charges"></td>
+        <td><input type="number" class="form-control form-control-sm scheme" step="0.01" onchange="calculateEditReturnRowTotal(${currentRowIndex})" placeholder="Scheme"></td>
+        <td><input type="number" class="form-control form-control-sm charges" step="0.01" onchange="calculateEditReturnRowTotal(${currentRowIndex})" placeholder="Charges"></td>
         <td><input type="text" class="form-control form-control-sm reason" maxlength="200" placeholder="Return reason"></td>
         <td><span class="edit-return-row-total">0.00</span></td>
-        <td><button type="button" class="btn btn-sm btn-danger" onclick="removeEditReturnProductRow(${editReturnProductRowIndex})"><i class="fas fa-trash"></i></button></td>
+        <td><button type="button" class="btn btn-sm btn-danger" onclick="removeEditReturnProductRow(${currentRowIndex})"><i class="fas fa-trash"></i></button></td>
     `;
     
     tbody.appendChild(row);
     editReturnProductRowIndex++;
     closeQuickSearchEdit();
     
-    // Focus on batch number input field
+    // Auto-open batch selector after product is added
     setTimeout(() => {
-        const batchInput = row.querySelector('.batch-no');
-        if (batchInput) {
-            batchInput.focus();
-        }
-    }, 100);
+        openBatchSelectorForEdit(currentRowIndex);
+    }, 300);
 }
 
 function closeQuickSearchEdit() {
@@ -1099,30 +1117,10 @@ function loadEditReturnProductInfo(rowIndex, productId) {
     const row = document.getElementById(`editReturnRow_${rowIndex}`);
     row.querySelector('.product-id').value = productId;
     
-    fetch(`/get-product-info/?product_id=${productId}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) return;
-            
-            if (row) {
-                row.querySelector('.batch-no').value = data.last_batch_no || '';
-                row.querySelector('.expiry').value = data.last_expiry || '';
-                row.querySelector('.mrp').value = data.last_mrp || '';
-                row.querySelector('.return-rate').value = data.last_purchase_rate || '';
-                
-                // Show stock info if available
-                if (data.last_stock) {
-                    const stockInfo = row.querySelector('.stock-info-edit');
-                    if (stockInfo) {
-                        stockInfo.innerHTML = `<small class="text-success"><i class="fas fa-info-circle"></i> Available Stock: ${data.last_stock}</small>`;
-                        stockInfo.style.display = 'block';
-                    }
-                }
-                
-                calculateEditReturnRowTotal(rowIndex);
-            }
-        })
-        .catch(error => console.error('Error:', error));
+    // Auto-open batch selector after product selection
+    setTimeout(() => {
+        openBatchSelectorForEdit(rowIndex);
+    }, 300);
 }
 
 // Keyboard shortcuts
@@ -1356,7 +1354,8 @@ function openQuickProductSearch() {
 }
 
 function quickSearchProducts(event) {
-    const searchTerm = event.target.value.toLowerCase();
+    const originalSearchTerm = event.target.value;
+    const searchTerm = originalSearchTerm.toLowerCase();
     const resultsDiv = document.getElementById('quickResults');
     
     // Skip navigation keys - handled in keydown event
@@ -1365,7 +1364,7 @@ function quickSearchProducts(event) {
     }
     
     // Handle search input
-    if (searchTerm.length < 2) {
+    if (originalSearchTerm.length < 2) {
         resultsDiv.innerHTML = '<div class="quick-hint">Type at least 2 characters...</div>';
         return;
     }
@@ -1377,31 +1376,43 @@ function quickSearchProducts(event) {
         company: '{{ product.product_company|escapejs }}'
     },{% endfor %}];
     
-    // Case-sensitive search based on original input
-    const originalSearchTerm = event.target.value;
-    
+    // Filter products that START with the search term (first 2+ letters)
     const filtered = products.filter(p => {
-        // Check if search term matches case-sensitively
-        const nameMatch = p.name.includes(originalSearchTerm) || p.name.toLowerCase().includes(searchTerm);
-        const companyMatch = p.company.includes(originalSearchTerm) || p.company.toLowerCase().includes(searchTerm);
+        // Primary filter: starts with search term (case-sensitive first, then case-insensitive)
+        const exactStartsName = p.name.startsWith(originalSearchTerm);
+        const exactStartsCompany = p.company.startsWith(originalSearchTerm);
+        const startsName = p.name.toLowerCase().startsWith(searchTerm);
+        const startsCompany = p.company.toLowerCase().startsWith(searchTerm);
         
-        // Prioritize exact case matches
-        const exactCaseMatch = p.name.includes(originalSearchTerm) || p.company.includes(originalSearchTerm);
-        
-        return nameMatch || companyMatch;
+        return exactStartsName || exactStartsCompany || startsName || startsCompany;
     }).sort((a, b) => {
-        // Sort by exact case match first, then alphabetically
-        const aExactMatch = a.name.includes(originalSearchTerm) || a.company.includes(originalSearchTerm);
-        const bExactMatch = b.name.includes(originalSearchTerm) || b.company.includes(originalSearchTerm);
+        // Priority scoring for "starts with" matches
+        let aScore = 0;
+        let bScore = 0;
         
-        if (aExactMatch && !bExactMatch) return -1;
-        if (!aExactMatch && bExactMatch) return 1;
+        // Exact case "starts with" gets highest priority (100 points)
+        if (a.name.startsWith(originalSearchTerm)) aScore += 100;
+        if (a.company.startsWith(originalSearchTerm)) aScore += 90;
+        if (b.name.startsWith(originalSearchTerm)) bScore += 100;
+        if (b.company.startsWith(originalSearchTerm)) bScore += 90;
         
+        // Case-insensitive "starts with" gets medium priority (50 points)
+        if (a.name.toLowerCase().startsWith(searchTerm)) aScore += 50;
+        if (a.company.toLowerCase().startsWith(searchTerm)) aScore += 40;
+        if (b.name.toLowerCase().startsWith(searchTerm)) bScore += 50;
+        if (b.company.toLowerCase().startsWith(searchTerm)) bScore += 40;
+        
+        // Sort by score (higher score first)
+        if (aScore !== bScore) {
+            return bScore - aScore;
+        }
+        
+        // If scores are equal, sort alphabetically
         return a.name.localeCompare(b.name);
-    }).slice(0, 8); // Show more results
+    });
     
     if (filtered.length === 0) {
-        resultsDiv.innerHTML = '<div class="no-results">No products found</div>';
+        resultsDiv.innerHTML = '<div class="no-results">No products starting with "' + originalSearchTerm + '" found</div>';
         return;
     }
     
@@ -1682,11 +1693,18 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Keyboard shortcut Ctrl+E for edit
+// Keyboard shortcuts
 document.addEventListener('keydown', function(e) {
+    // Ctrl+E for edit
     if (e.ctrlKey && e.key === 'e') {
         e.preventDefault();
         openEditPurchaseReturnModal();
+    }
+    
+    // Ctrl+P for print
+    if (e.ctrlKey && e.key === 'p') {
+        e.preventDefault();
+        window.open('{% url "print_purchase_return_receipt" return_id=return_invoice.returninvoiceid %}', '_blank');
     }
 });
 </script>
@@ -2412,5 +2430,26 @@ mark {
     }
 }
 </style>
-
+<div style="position: fixed; bottom: 0; left: 0; right: 0; background: #1f2937; color: #d1d5db; padding: 10px 20px; font-size: 0.8rem; display: flex; justify-content: center; gap: 30px; z-index: 100; box-shadow: 0 -2px 10px rgba(0,0,0,0.1);">
+    <div style="display: flex; align-items: center; gap: 5px;">
+        <span style="background: #374151; padding: 2px 6px; border-radius: 3px; font-weight: 600; font-size: 0.7rem;">Ctrl+E</span>
+        <span>Edit Invoice</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 5px;">
+        <span style="background: #374151; padding: 2px 6px; border-radius: 3px; font-weight: 600; font-size: 0.7rem;">Ctrl+P</span>
+        <span>Print receipt</span>
+    </div>
+    <!-- <div style="display: flex; align-items: center; gap: 5px;">
+        <span style="background: #374151; padding: 2px 6px; border-radius: 3px; font-weight: 600; font-size: 0.7rem;">Alt+W</span>
+        <span>Batch Selector</span>
+    </div> -->
+    <!-- <div style="display: flex; align-items: center; gap: 5px;">
+        <span style="background: #374151; padding: 2px 6px; border-radius: 3px; font-weight: 600; font-size: 0.7rem;">Ctrl+S</span>
+        <span>Save Invoice</span>
+    </div> -->
+    <!-- <div style="display: flex; align-items: center; gap: 5px;">
+        <span style="background: #374151; padding: 2px 6px; border-radius: 3px; font-weight: 600; font-size: 0.7rem;">Ctrl+D</span>
+        <span>Duplicate Row</span>
+    </div> -->
+</div>
 {% endblock %}

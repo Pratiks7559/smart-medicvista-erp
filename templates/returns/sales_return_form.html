@@ -29,7 +29,6 @@
                         <div class="sr-form-group required">
                             <label for="return_date" class="sr-field-label">Return Date</label>
                             <input type="date" name="return_sales_invoice_date" id="return_date" class="sr-form-input" 
-                                   value="{{ form.return_sales_invoice_date.value|default:'' }}" 
                                    title="Enter return date" required>
                             <small class="sr-text-muted">📅 Current date auto-filled</small>
                         </div>
@@ -51,7 +50,13 @@
                         <div class="sr-form-group">
                             <label for="additionalCharges" class="sr-field-label">Additional Charges</label>
                             <input type="number" name="return_sales_charges" id="additionalCharges" class="sr-form-input" 
-                                   value="0" step="0.01" min="0">
+                                   value="0" step="0.01" min="0" onchange="calculateGrandTotal()">
+                        </div>
+                        
+                        <div class="sr-form-group">
+                            <label for="transportCharges" class="sr-field-label">Transport Charges</label>
+                            <input type="number" name="transport_charges" id="transportCharges" class="sr-form-input" 
+                                   value="0" step="0.01" min="0" onchange="calculateGrandTotal()">
                         </div>
                     </div>
                 </div>
@@ -80,7 +85,9 @@
                                         <th class="rate-col">Rate</th>
                                         <th class="qty-col">Qty</th>
                                         <th class="discount-col">Discount</th>
-                                        <th class="gst-col">GST%</th>
+                                        <th class="gst-col">CGST%</th>
+                                        <th class="gst-col">SGST%</th>
+                                        <th class="reason-col">Reason</th>
                                         <th class="total-col">Total</th>
                                         <th class="action-col">Action</th>
                                     </tr>
@@ -93,8 +100,22 @@
                         
                         <div class="sr-total-section">
                             <div class="sr-total-wrapper">
-                                <div class="sr-grand-total">
-                                    <strong class="sr-total-label">Grand Total: ₹<span id="grandTotal" class="sr-total-amount">0.00</span></strong>
+                                <div class="sr-total-breakdown">
+                                    <div class="sr-total-row">
+                                        <span>Products Total:</span>
+                                        <span>₹<span id="productsTotal">0.00</span></span>
+                                    </div>
+                                    <div class="sr-total-row">
+                                        <span>Additional Charges:</span>
+                                        <span>₹<span id="additionalChargesDisplay">0.00</span></span>
+                                    </div>
+                                    <div class="sr-total-row">
+                                        <span>Transport Charges:</span>
+                                        <span>₹<span id="transportChargesDisplay">0.00</span></span>
+                                    </div>
+                                    <div class="sr-grand-total">
+                                        <strong class="sr-total-label">Grand Total: ₹<span id="grandTotal" class="sr-total-amount">0.00</span></strong>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -144,7 +165,16 @@ function addProductRow() {
         <td class="rate-cell"><input type="number" class="return-rate" step="0.01" placeholder="0.00" min="0" onchange="calculateRowTotal(${productRowCount})" required></td>
         <td class="qty-cell"><input type="number" class="return-quantity" step="0.01" placeholder="0" min="0.01" onchange="calculateRowTotal(${productRowCount})" required></td>
         <td class="discount-cell"><input type="number" class="discount" step="0.01" placeholder="0.00" min="0" onchange="calculateRowTotal(${productRowCount})" value="0"></td>
-        <td class="gst-cell"><input type="number" class="gst" step="0.01" placeholder="0.00" min="0" max="100" onchange="calculateRowTotal(${productRowCount})" value="0"></td>
+        <td class="gst-cell"><input type="number" class="cgst" step="0.01" placeholder="CGST%" min="0" max="100" onchange="calculateRowTotal(${productRowCount})" value="2.5"></td>
+        <td class="gst-cell"><input type="number" class="sgst" step="0.01" placeholder="SGST%" min="0" max="100" onchange="calculateRowTotal(${productRowCount})" value="2.5"></td>
+        <td class="reason-cell">
+            <select class="return-reason">
+                <option value="">Select Reason</option>
+                <option value="non_moving">Non Moving</option>
+                <option value="breakage">Breakage</option>
+                <option value="expiry">Expiry</option>
+            </select>
+        </td>
         <td class="total-cell"><strong class="row-total">₹0.00</strong></td>
         <td class="action-cell"><button type="button" class="sr-remove-btn" onclick="removeProductRow(${productRowCount})" title="Remove Product"><i class="fas fa-trash"></i></button></td>
     `;
@@ -184,11 +214,12 @@ function calculateRowTotal(index) {
         const rate = parseFloat(row.querySelector('.return-rate').value) || 0;
         const quantity = parseFloat(row.querySelector('.return-quantity').value) || 0;
         const discount = parseFloat(row.querySelector('.discount').value) || 0;
-        const gst = parseFloat(row.querySelector('.gst').value) || 0;
+        const cgst = parseFloat(row.querySelector('.cgst').value) || 0;
+        const sgst = parseFloat(row.querySelector('.sgst').value) || 0;
         
         const baseAmount = rate * quantity;
         const discountedAmount = baseAmount - discount;
-        const totalAmount = discountedAmount * (1 + (gst / 100));
+        const totalAmount = discountedAmount * (1 + ((cgst + sgst) / 100));
         
         row.querySelector('.row-total').textContent = '₹' + totalAmount.toFixed(2);
         calculateGrandTotal();
@@ -204,22 +235,22 @@ function calculateRowTotal(index) {
 
 // Calculate grand total
 function calculateGrandTotal() {
-    let grandTotal = 0;
+    let productsTotal = 0;
     document.querySelectorAll('.row-total').forEach(span => {
         const value = span.textContent.replace('₹', '');
-        grandTotal += parseFloat(value) || 0;
+        productsTotal += parseFloat(value) || 0;
     });
     
-    // Add transport charges if any
+    // Get additional charges and transport charges
     const additionalCharges = parseFloat(document.getElementById('additionalCharges').value) || 0;
-    const finalTotal = grandTotal + additionalCharges;
+    const transportCharges = parseFloat(document.getElementById('transportCharges').value) || 0;
+    const finalTotal = productsTotal + additionalCharges + transportCharges;
     
+    // Update display
+    document.getElementById('productsTotal').textContent = productsTotal.toFixed(2);
+    document.getElementById('additionalChargesDisplay').textContent = additionalCharges.toFixed(2);
+    document.getElementById('transportChargesDisplay').textContent = transportCharges.toFixed(2);
     document.getElementById('grandTotal').textContent = finalTotal.toFixed(2);
-    
-    // Show breakdown if additional charges exist
-    if (additionalCharges > 0) {
-        document.getElementById('grandTotal').innerHTML = `${grandTotal.toFixed(2)} + ${additionalCharges.toFixed(2)} = <strong>${finalTotal.toFixed(2)}</strong>`;
-    }
 }
 
 // This function is now handled by the change event listener above
@@ -293,7 +324,9 @@ document.getElementById('salesReturnForm').addEventListener('submit', function(e
                 return_rate: row.querySelector('.return-rate').value,
                 return_quantity: row.querySelector('.return-quantity').value,
                 discount: row.querySelector('.discount').value,
-                gst: row.querySelector('.gst').value
+                cgst: row.querySelector('.cgst').value,
+                sgst: row.querySelector('.sgst').value,
+                return_reason: row.querySelector('.return-reason').value
             });
         }
     });
@@ -364,14 +397,15 @@ function openQuickProductSearch() {
 }
 
 function quickSearchProducts(event) {
-    const searchTerm = event.target.value.toLowerCase();
+    const originalSearchTerm = event.target.value;
+    const searchTerm = originalSearchTerm.toLowerCase();
     const resultsDiv = document.getElementById('quickResults');
     
     if (['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(event.key)) {
         return;
     }
     
-    if (searchTerm.length < 2) {
+    if (originalSearchTerm.length < 2) {
         resultsDiv.innerHTML = '<div class="quick-hint">Type at least 2 characters...</div>';
         return;
     }
@@ -382,27 +416,43 @@ function quickSearchProducts(event) {
         company: '{{ product.product_company|escapejs }}'
     },{% endfor %}];
     
-    const originalSearchTerm = event.target.value;
-    
+    // Filter products that START with the search term (first 2+ letters)
     const filtered = products.filter(p => {
-        const exactNameMatch = p.name.includes(originalSearchTerm);
-        const exactCompanyMatch = p.company.includes(originalSearchTerm);
-        const nameMatch = p.name.toLowerCase().includes(searchTerm);
-        const companyMatch = p.company.toLowerCase().includes(searchTerm);
+        // Primary filter: starts with search term (case-sensitive first, then case-insensitive)
+        const exactStartsName = p.name.startsWith(originalSearchTerm);
+        const exactStartsCompany = p.company.startsWith(originalSearchTerm);
+        const startsName = p.name.toLowerCase().startsWith(searchTerm);
+        const startsCompany = p.company.toLowerCase().startsWith(searchTerm);
         
-        return exactNameMatch || exactCompanyMatch || nameMatch || companyMatch;
+        return exactStartsName || exactStartsCompany || startsName || startsCompany;
     }).sort((a, b) => {
-        const aExactMatch = a.name.includes(originalSearchTerm) || a.company.includes(originalSearchTerm);
-        const bExactMatch = b.name.includes(originalSearchTerm) || b.company.includes(originalSearchTerm);
+        // Priority scoring for "starts with" matches
+        let aScore = 0;
+        let bScore = 0;
         
-        if (aExactMatch && !bExactMatch) return -1;
-        if (!aExactMatch && bExactMatch) return 1;
+        // Exact case "starts with" gets highest priority (100 points)
+        if (a.name.startsWith(originalSearchTerm)) aScore += 100;
+        if (a.company.startsWith(originalSearchTerm)) aScore += 90;
+        if (b.name.startsWith(originalSearchTerm)) bScore += 100;
+        if (b.company.startsWith(originalSearchTerm)) bScore += 90;
         
+        // Case-insensitive "starts with" gets medium priority (50 points)
+        if (a.name.toLowerCase().startsWith(searchTerm)) aScore += 50;
+        if (a.company.toLowerCase().startsWith(searchTerm)) aScore += 40;
+        if (b.name.toLowerCase().startsWith(searchTerm)) bScore += 50;
+        if (b.company.toLowerCase().startsWith(searchTerm)) bScore += 40;
+        
+        // Sort by score (higher score first)
+        if (aScore !== bScore) {
+            return bScore - aScore;
+        }
+        
+        // If scores are equal, sort alphabetically
         return a.name.localeCompare(b.name);
-    }).slice(0, 8);
+    });
     
     if (filtered.length === 0) {
-        resultsDiv.innerHTML = '<div class="no-results">No products found</div>';
+        resultsDiv.innerHTML = '<div class="no-results">No products starting with "' + originalSearchTerm + '" found</div>';
         return;
     }
     
@@ -470,14 +520,6 @@ function fillProductInRow(row, productId) {
         
         const rowIndex = row.id.replace('productRow_', '');
         loadProductDetails(productSelect, rowIndex);
-        
-        setTimeout(() => {
-            const batchField = row.querySelector('.batch-no');
-            if (batchField) {
-                batchField.focus();
-                batchField.select();
-            }
-        }, 300);
     }
 }
 
@@ -627,7 +669,8 @@ function selectBatch(batchNo, rowIndex, batchData) {
         }
         
         row.querySelector('.return-rate').value = selectedRate;
-        row.querySelector('.gst').value = batchData.gst_rate || '12';
+        row.querySelector('.cgst').value = '2.5';
+        row.querySelector('.sgst').value = '2.5';
         
         // Show updated stock info
         const stockInfo = document.createElement('small');
@@ -674,60 +717,10 @@ function filterBatches() {
 function loadProductDetails(productSelect, rowIndex) {
     if (!productSelect.value) return;
     
-    // Fetch available batches for the selected product
-    fetch(`/api/product-batch-selector/?product_id=${productSelect.value}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success && data.batches.length > 0) {
-                const row = document.getElementById(`productRow_${rowIndex}`);
-                const firstBatch = data.batches[0]; // Use first available batch
-                
-                // Auto-fill all fields with MM-YYYY expiry format
-                row.querySelector('.batch-no').value = firstBatch.batch_no;
-                row.querySelector('.expiry').value = firstBatch.expiry; // Already in MM-YYYY format from backend
-                row.querySelector('.mrp').value = firstBatch.mrp;
-                
-                // Set rate based on customer type
-                let selectedRate = firstBatch.mrp; // Default fallback
-                if (firstBatch.rates && selectedCustomerRateType === 'A' && firstBatch.rates.rate_A > 0) {
-                    selectedRate = firstBatch.rates.rate_A;
-                } else if (firstBatch.rates && selectedCustomerRateType === 'B' && firstBatch.rates.rate_B > 0) {
-                    selectedRate = firstBatch.rates.rate_B;
-                } else if (firstBatch.rates && selectedCustomerRateType === 'C' && firstBatch.rates.rate_C > 0) {
-                    selectedRate = firstBatch.rates.rate_C;
-                }
-                
-                row.querySelector('.return-rate').value = selectedRate;
-                row.querySelector('.return-quantity').value = '1';
-                row.querySelector('.discount').value = '0';
-                row.querySelector('.gst').value = '12';
-                
-                // Show stock info
-                const stockInfo = document.createElement('small');
-                stockInfo.className = 'text-success stock-info';
-                stockInfo.innerHTML = `<i class="fas fa-info-circle"></i> Stock: ${firstBatch.stock} | Rate ${selectedCustomerRateType}: ₹${selectedRate}`;
-                
-                const existingInfo = row.querySelector('.stock-info');
-                if (existingInfo) existingInfo.remove();
-                
-                row.querySelector('.return-quantity').parentNode.appendChild(stockInfo);
-                
-                // Trigger calculation
-                calculateRowTotal(rowIndex);
-                
-                // Auto-focus on batch input after product selection
-                setTimeout(() => {
-                    const batchInput = row.querySelector('.batch-no');
-                    if (batchInput) {
-                        batchInput.focus();
-                        batchInput.select();
-                    }
-                }, 150);
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching product batches:', error);
-        });
+    // Auto-open batch selector after product selection
+    setTimeout(() => {
+        showBatchSelectionDialog(productSelect.value, rowIndex);
+    }, 300);
 }
 
 // Load batch rate based on customer type with enhanced matching
@@ -1029,7 +1022,8 @@ function fetchBatchDetails(productId, batchNo, rowIndex) {
                     }
                     
                     row.querySelector('.return-rate').value = selectedRate;
-                    row.querySelector('.gst').value = data.gst_rate || '12';
+                    row.querySelector('.cgst').value = '2.5';
+                    row.querySelector('.sgst').value = '2.5';
                     
                     calculateRowTotal(rowIndex);
                     
@@ -1206,156 +1200,6 @@ document.addEventListener('DOMContentLoaded', function() {
     border-top: 1px solid #e5e7eb;
 }
 
-/* Batch Selection Modal Styles */
-.batch-modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-}
-
-.batch-modal-content {
-    background: white;
-    border-radius: 10px;
-    width: 90%;
-    max-width: 500px;
-    max-height: 80vh;
-    overflow: hidden;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-}
-
-.batch-modal-header {
-    background: #059669;
-    color: white;
-    padding: 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.batch-modal-header h3 {
-    margin: 0;
-    font-size: 1.2rem;
-}
-
-.batch-modal-close {
-    background: none;
-    border: none;
-    color: white;
-    font-size: 1.5rem;
-    cursor: pointer;
-    padding: 0;
-    width: 30px;
-    height: 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.batch-modal-body {
-    padding: 20px;
-}
-
-.batch-search input {
-    width: 100%;
-    padding: 10px;
-    border: 2px solid #e5e7eb;
-    border-radius: 6px;
-    margin-bottom: 15px;
-    outline: none;
-}
-
-.batch-search input:focus {
-    border-color: #059669;
-    box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1);
-}
-
-.batch-list {
-    max-height: 300px;
-    overflow-y: auto;
-}
-
-.batch-item {
-    padding: 12px;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
-    margin-bottom: 8px;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.batch-item:hover,
-.batch-item.batch-selected {
-    background: #f0fdf4;
-    border-color: #059669;
-}
-
-.batch-no {
-    font-size: 1rem;
-    margin-bottom: 5px;
-}
-
-.batch-details {
-    display: flex;
-    gap: 15px;
-    font-size: 0.9rem;
-    color: #6b7280;
-    margin-bottom: 8px;
-}
-
-.batch-rates {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-top: 5px;
-}
-
-.rate-badge {
-    background: #dbeafe;
-    color: #1e40af;
-    padding: 3px 8px;
-    border-radius: 4px;
-    font-size: 0.75rem;
-    font-weight: 500;
-}
-
-.batch-modal-footer {
-    background: #f9fafb;
-    padding: 15px 20px;
-    border-top: 1px solid #e5e7eb;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.batch-shortcuts {
-    font-size: 0.8rem;
-    color: #6b7280;
-}
-
-.btn {
-    padding: 8px 16px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.9rem;
-}
-
-.btn-secondary {
-    background: #6b7280;
-    color: white;
-}
-
-.btn-secondary:hover {
-    background: #4b5563;
-}
-
 /* Rate Type Indicators */
 .rate-indicator {
     background: #f0fdf4;
@@ -1498,5 +1342,27 @@ document.addEventListener('DOMContentLoaded', function() {
         <span class="sr-shortcut-key">Ctrl+S</span>
         <span>Save Return</span>
     </div>
+</div>
+<div style="position: fixed; bottom: 0; left: 0; right: 0; background: #1f2937; color: #d1d5db; padding: 10px 20px; font-size: 0.8rem; display: flex; justify-content: center; gap: 30px; z-index: 100; box-shadow: 0 -2px 10px rgba(0,0,0,0.1);">
+    <div style="display: flex; align-items: center; gap: 5px;">
+        <span style="background: #374151; padding: 2px 6px; border-radius: 3px; font-weight: 600; font-size: 0.7rem;">Ctrl+F2</span>
+        <span>Quick Search</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 5px;">
+        <span style="background: #374151; padding: 2px 6px; border-radius: 3px; font-weight: 600; font-size: 0.7rem;">Ctrl+Enter</span>
+        <span>Add Product</span>
+    </div>
+    <!-- <div style="display: flex; align-items: center; gap: 5px;">
+        <span style="background: #374151; padding: 2px 6px; border-radius: 3px; font-weight: 600; font-size: 0.7rem;">Alt+W</span>
+        <span>Batch Selector</span>
+    </div> -->
+    <!-- <div style="display: flex; align-items: center; gap: 5px;">
+        <span style="background: #374151; padding: 2px 6px; border-radius: 3px; font-weight: 600; font-size: 0.7rem;">Ctrl+S</span>
+        <span>Save Invoice</span>
+    </div> -->
+    <!-- <div style="display: flex; align-items: center; gap: 5px;">
+        <span style="background: #374151; padding: 2px 6px; border-radius: 3px; font-weight: 600; font-size: 0.7rem;">Ctrl+D</span>
+        <span>Duplicate Row</span>
+    </div> -->
 </div>
 {% endblock %}

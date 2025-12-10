@@ -107,3 +107,58 @@ mere pharamamgmt ke roejct mee ye kya ho raha hai page pr bg colour and uske upp
 cd "c:\pharmaproject pratk\WebsiteHostingService\WebsiteHostingService\WebsiteHostingService\pharmamgmt"
 cd "c:\pharmaproject pratk\WebsiteHostingService\WebsiteHostingService\WebsiteHostingService\pharmamgmt"
 
+tum mera full code anylse karo html with their css files muze dark and light theme ke hisab se ek aisa change do ki machine theme kuch bhi ho code ke kisi css pr ,visiblity ,click and all pr change nhi hoga,css ek dusre pe collapse nhi honge,ui style change nhi hoga.
+sales section me jab bhi uer new inovoice banaye tabhi vo invoice detail pr jata hai waha pe print receipt ka btn do(shortcut ctrl p) print receipt ka format kaisa ho vo mai tumhe batata hu paper landscape ho,top me pharmacy name,uke niche properiatoer name,contact no,website url,email ho uske niche jis customer ka sale invoice hai usak name,current date(dd-mm-yyyy format) uske niche table with row column me jo product sell kiya hai unki info sabse niche unka total ye sab ek dam sturctured format me ho
+in purchase section me combined invoice form me jo shorcuts apply kiya hai unko usi page pr dikhao ki jo bhi user us page pr aaye to use pata chale kaun se shorcuts hai
+meri ek problem hai project handling ke related jab bhi project me koi changes karta hu vo same project maine pratiks7559,yashb,vaibhav in 3 github pr dale hai pr changes karne ke baad muze pahle git remote remove origin and git remote add origin user url and then git push -u origin main ye process muze 3 times karni padti hai kya isko short and solve karne ka solution batao      
+sales section me combined sales invocie form me user jab bhi product searc kare using dropdown or quic porduct search and select karne ke baad uska batch selection model autoopen ho
+
+
+jab purchase inovice create hota hai tabhi added product ki stock qty rates expiry date and amount all prodeuct invenotry,batch wise ,date wise invenorry me update hote hai waise user jab bhi challan create karnege tab bhi challan me added product ki stock qty rate expiry and amount jitni bhi details hai vo sari all product invenotry ,batch wise,date wise inventory me update ho 
+
+jab bhi mai batch wise and date wise inventory me jata hu tabhi bahut load hone me time lag raha hai aisa na ho
+
+ek kam karo customer challan list me har row me pahele select check box do select karne ke liye jab bhi user at least one challan seelct karen pr upper create inovice ka btn do us btn pr click karne pr ek dialog box open jisme dikhe user ne kaun se kaun se challan select kiye hai .un select kiye hue challan ek inovice banana hai usi dialog box me add series btn do (is ka connection direct cmbined sales inovice form ke add series se hoga uska copy yaha pe hoga) user ne select karne ke baad inovice no series+0000001 se autogenerate ho green me ,inovice date bhi dikhao,selected challan ki total bhi dikhao save and cancel btn itna implement karo
+
+customer challan ke inovice creation dialog box me select series me inovice series me ssavseries dikhe user jo bhi series add kare vo inovice sereis database me jaye uske menaas combined sales inovice me user jo series add ki hai vo bhi inovice creation dialog box ke select series ke drodown me dikhene agar user ne vo series select ki to uska pahele age inovice no ban chuka hoga to uske aage ka inovce no dikhao means jo used invoice series no hai uske aage ka unused
+ab ek kam karo challan inovoice list me jo action btn hai unme jo eye btn hai us pr click karne pr user jaye challan inovice detial.html page pr jaye jaise purchase inovice detail page hai usme inovice inof hai waise isme challan inovoce infor ke kare do usme payment summary,paymetn history, paymetn bar,payment hsitory, challans jisme challan rows dikhe ki ye inovice me kitne challan hai jaise supplier challan list me dikhate the, uske baad har ek challan ki ttoal grand total dikhe
+challan inovice list me action me jo payment icon hai uske liye dialog box banao jaise purchase inovice list ke payment icon ke liye banaya hai with challan inovice detail ke add payment btn ke liye bhi payment dialog box banao with databse me supplier challan inovoice paid ka db table banao jasie inoice paid ke liye banaya hai waise jaise jaise user payment add kartr jaye info db me svae ho with payment bar update ho payment history me payment history dikhe , bar calculaton se uper right corner me dikhe ki payment kitna hua hai menas partial,paid,unpaid and wahi ststus challan invoice list me update ho
+
+challan invoice detail ki internal and inline css remove kar 2) challan inoivce detail ko har ek htmltag ko unique classes do 3) challan inoivc dettail ko beautifull best css fo,theme independent,all mobile responsivenss,compact etc
+challan invoice list ki internal and ilnine css remvo kar 2) challan inoivce list ko har ek htmltag ko unique classes do 3) challan inoivc list ko beautifull best css fo,theme independent,all mobile responsivenss,compact etc
+
+samjo maine inovice no 1111 ke liye payment kiya 1.5 ka to total amonut 1.5 , amount paid 1.5 aand balance due 0 is rigth but mai jab bhi payment delete karta hu to total amount 1.5 is right but ppaid me 0 ki jaagha -1.5 and balance due me 1.5 ki jaa'gh 2.10 aa raha hai ye correctly karo
+
+finance section ke payment form.html ki existing css file me aisi css(changes) do jisme dark and light ka effect na ho vsiibltiy ensure rahe
+
+ab ek kam karo purchase section me inovoice ki receipt banane ke liye pharmacy_purchase_receipt ki functionliaty implment karo full with realtime and correct date
+purchase section mese pharmacy_purchase_receipt.html with backed code full delete karo
+existing pharmacy ppurchase recepit.html me 7 product per page dikhe usse jya product ho to ek aur receipt badt e jayegi with info 2) pharmcy purchase receipt me pharmacy details bhi add karo db mese 3) pharmacy purchase reciept me header medicvista-purcase receipt ho 3) pharmacy purchase receipt me amount me 1.04999999 itni badi nhi sirf 1.04 aise dikhao and amount ke niche amount ek line me aaye
+
+jaise se sales ke liye banyi hai ab ek kam karo purchase section me inovoice ki receipt banane ke liye pharmacy_purchase_receipt ki functionliaty implment karo full with realtime and correct data
+
+maine jab bhi supplier challan banaya with product name as restuss uski qty 1 pr muze supplier challlan ko purchase inovice me pull karne mai jab bhi purchase inovice banata hu uski vajah se invenotry master,invenotry trasaction me supplier challan ke product ke liye duplicate entry ho rahi hai usi ke sath invneotry ke ui mai stock qty 1 he honi chahiye to 2 ho jati hai please kuch bhi karo best logic lagao ye problem solve karo
+abe meri baat suno user jab bhi pull challan kakre product add kare regualr product section me jo product pull challan karke add kiya hai uske side me ek border taiyar ho jaye and us border sabse upper left side me un product ka challan no and challan kab create kiye uski date likhi ho aisa designation karo
+
+see impsss.png carfully no challan date shown 2)in impsss.png challan no collapse discount,cgst field 3) agar user ne multiple challan with multiple product add kiye hai har challan ke liye border allag aayegi , ek challan me agar multiple product hai to vo ek hi challan no ki niche us border me aayenge 3) border bhi aisi banao ki full secton me aaye tum dekho impsss.png me border section ko cover hi nhi kaara rahi hai aise sab aches banao
+
+purchase section ke purchase pharmacy receipt me jo product challan se add hue hai unke liye pahle challan ki date dikhao fir uske niche product ka table dikhao
+
+jink challan date hai vo product challan date ke hisab se ek table me aayeneg jinko challan date nhi hai vo direct invoice product samjke unka alag table banega purhcase receipt print me
+
+pharmacy purchae reciept me challan ki date table me nhi jaha pe challan products heading hai use remove karke waha pr dikhao
+
+agar pharmacy purchase receipt me sab ek page me aa raha hai pr authorized signatue ya balcned ue se ya subtotal se agle page pr aa raha hai to jo last table hoga vo next page pe hi lelo
+
+jab bhi mai combiend inpvice form me transport charges add karta hu inovice masters me inovice total tranport charges ke sath hoke banani chahiye , inovice lisrt me total,balance bhi agar transport charges hogi uske sath aaye, inovce drtail me bhi payment summy me total amount ,balance due me bhi trasport charges add honge to ye all fix karo
+
+
+ek baat dyan se suno purchse section combined inovice me jab bhi user pull challan karke inovice save kare tabhi user ne selected supplier challan master ki entry jake supplier challan master 2 me dal dena and supplier challan master ki entries delete ho jayegi samj gaye sirf itna karo
+
+agar user ne pull challan wala inovice delete kiye to supplierchallanmaster2 ka supplier challan master me
+
+Cannot delete invoice. Error: name 'SupplierChallanMaster' is not defined solve this
+
+supplier challan list me and supplier challan detaiil me kya ho raha hai challan dikh raha hai pr uski details me product section me product nhi dikh raha hai kyo ki hum supplierchallanmaster ka data supplierchallanmaster2 ko de rahe hai to iske liye bhi kuch adjust karo
+
+1)jab bhi kisi product ka purchase ho ya supplier challan ho invenotry master me uski entry hogi 2) jab bhi kisi product ka customer challan ho ya salse ho to inventory master me se stock qty kam hogi 3) agar kisi product ki stock qty 0 hai to vo product inventory master me se delte ho jayega 4) invenotry master me se kuch bhi delete ho ga to inventory transactino me se kuch bhi delete na ho

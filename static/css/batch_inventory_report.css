@@ -1,9 +1,13 @@
-/* Batch Inventory Report Specific Styles */
+/* Batch Inventory Report - Compact */
 
 /* Main container */
 .batch-report-container {
-    padding: 20px;
+    padding: 0.5rem;
     background-color: #f8f9fc;
+    max-height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
 /* Header section */
@@ -11,17 +15,19 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 30px;
-    padding: 20px;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem 0.75rem;
     background: white;
-    border-radius: 8px;
-    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(58, 59, 69, 0.15);
+    flex-shrink: 0;
 }
 
 .batch-report-title {
     color: #5a5c69;
     font-weight: 700;
     margin: 0;
+    font-size: 1.1rem;
 }
 
 .batch-report-actions {
@@ -30,10 +36,10 @@
 }
 
 .batch-report-btn {
-    padding: 8px 16px;
-    border-radius: 6px;
+    padding: 0.35rem 0.75rem;
+    border-radius: 4px;
     text-decoration: none;
-    font-size: 14px;
+    font-size: 0.75rem;
     font-weight: 500;
     transition: all 0.3s ease;
 }
@@ -62,32 +68,74 @@
     text-decoration: none;
 }
 
+.batch-report-btn-warning {
+    background: #f6c23e;
+    color: #5a5c69;
+    border: 1px solid #f6c23e;
+}
+
+.batch-report-btn-warning:hover {
+    background: #f4b619;
+    color: #5a5c69;
+    text-decoration: none;
+}
+
+.batch-report-btn-success {
+    background: #1cc88a;
+    color: white;
+    border: 1px solid #1cc88a;
+}
+
+.batch-report-btn-success:hover {
+    background: #17a673;
+    color: white;
+    text-decoration: none;
+}
+
+.batch-report-btn-info {
+    background: #36b9cc;
+    color: white;
+    border: 1px solid #36b9cc;
+}
+
+.batch-report-btn-info:hover {
+    background: #2c9faf;
+    color: white;
+    text-decoration: none;
+}
+
 /* Card section */
 .batch-report-card {
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+    background: white !important;
+    color: #5a5c69 !important;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(58, 59, 69, 0.15);
     border: 1px solid #e3e6f0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 .batch-report-card-header {
-    padding: 20px;
+    padding: 0.5rem 0.75rem;
     border-bottom: 1px solid #e3e6f0;
     background: #f8f9fc;
-    border-radius: 8px 8px 0 0;
+    border-radius: 6px 6px 0 0;
+    flex-shrink: 0;
 }
 
 .batch-report-card-title {
     color: #5a5c69;
     font-weight: 700;
-    margin: 0 0 5px 0;
-    font-size: 18px;
+    margin: 0 0 0.25rem 0;
+    font-size: 0.95rem;
 }
 
 .batch-report-card-subtitle {
     color: #858796;
-    margin: 0 0 15px 0;
-    font-size: 14px;
+    margin: 0 0 0.5rem 0;
+    font-size: 0.75rem;
 }
 
 /* Search form */
@@ -105,10 +153,10 @@
 
 .batch-search-input {
     width: 100%;
-    padding: 10px 12px;
+    padding: 0.4rem 0.6rem;
     border: 1px solid #d1d3e2;
-    border-radius: 6px;
-    font-size: 14px;
+    border-radius: 4px;
+    font-size: 0.8rem;
     transition: border-color 0.3s ease;
 }
 
@@ -124,10 +172,10 @@
 }
 
 .batch-search-btn {
-    padding: 10px 16px;
+    padding: 0.4rem 0.75rem;
     border: none;
-    border-radius: 6px;
-    font-size: 14px;
+    border-radius: 4px;
+    font-size: 0.8rem;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.3s ease;
@@ -161,7 +209,10 @@
 
 /* Card body */
 .batch-report-card-body {
-    padding: 20px;
+    padding: 0.5rem 0.75rem;
+    flex: 1;
+    overflow: auto;
+    max-height: calc(100vh - 250px);
 }
 
 /* Alert */
@@ -189,15 +240,16 @@
 
 /* Table container */
 .batch-table-container {
-    overflow-x: auto;
-    border-radius: 6px;
+    overflow: auto;
+    border-radius: 4px;
     border: 1px solid #e3e6f0;
 }
 
 .batch-inventory-table {
     width: 100%;
     border-collapse: collapse;
-    background: white;
+    background: white !important;
+    color: #5a5c69 !important;
     margin: 0;
 }
 
@@ -207,14 +259,15 @@
 }
 
 .batch-table-header th {
-    padding: 15px 12px;
+    padding: 0.4rem 0.5rem;
     text-align: left;
     font-weight: 700;
     color: #5a5c69;
-    font-size: 13px;
+    font-size: 0.75rem;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.3px;
     border-right: 1px solid #e3e6f0;
+    white-space: nowrap;
 }
 
 .batch-table-header th:last-child {
@@ -227,7 +280,7 @@
 }
 
 .batch-inventory-table tbody tr:hover {
-    background-color: #f8f9fc;
+    background-color: #f8f9fc !important;
 }
 
 .batch-zero-stock-row {
@@ -239,9 +292,9 @@
 }
 
 .batch-inventory-table td {
-    padding: 12px;
-    font-size: 14px;
-    color: #5a5c69;
+    padding: 0.4rem 0.5rem;
+    font-size: 0.75rem;
+    color: #5a5c69 !important;
     border-right: 1px solid #e3e6f0;
 }
 
@@ -365,28 +418,150 @@
 
 /* Print styles */
 @media print {
-    .no-print {
+    /* Hide non-printable elements */
+    .no-print,
+    .batch-report-actions,
+    .batch-search-form,
+    .batch-pagination-container,
+    .batch-alert-close {
         display: none !important;
+    }
+    
+    /* Reset page styles */
+    body {
+        background: white !important;
+        color: black !important;
     }
     
     .batch-report-container {
         padding: 0;
-        background: white;
+        background: white !important;
+        color: black !important;
+    }
+    
+    .batch-report-header {
+        background: white !important;
+        box-shadow: none;
+        border-bottom: 2px solid #000;
+        margin-bottom: 20px;
+    }
+    
+    .batch-report-title {
+        color: black !important;
+        font-size: 24px;
     }
     
     .batch-report-card {
         box-shadow: none;
         border: none;
+        background: white !important;
+    }
+    
+    .batch-report-card-header {
+        background: white !important;
+        border-bottom: 1px solid #000;
+    }
+    
+    .batch-report-card-title {
+        color: black !important;
+    }
+    
+    .batch-report-card-subtitle {
+        color: #333 !important;
+    }
+    
+    .batch-info-alert {
+        background: #f0f0f0 !important;
+        border: 1px solid #ccc !important;
+        color: black !important;
+    }
+    
+    /* Table print styles */
+    .batch-table-container {
+        border: 1px solid #000;
     }
     
     .batch-inventory-table {
-        font-size: 12px;
+        font-size: 11px;
+        background: white !important;
+        color: black !important;
+        page-break-inside: auto;
     }
     
-    .batch-inventory-table th,
-    .batch-inventory-table td {
-        padding: 8px 6px;
+    .batch-inventory-table thead {
+        display: table-header-group;
     }
+    
+    .batch-inventory-table tfoot {
+        display: table-footer-group;
+    }
+    
+    .batch-table-header {
+        background: #f0f0f0 !important;
+        border-bottom: 2px solid #000 !important;
+    }
+    
+    .batch-table-header th {
+        padding: 8px 6px;
+        color: black !important;
+        border-right: 1px solid #000 !important;
+    }
+    
+    .batch-inventory-table tbody tr {
+        page-break-inside: avoid;
+        border-bottom: 1px solid #ccc !important;
+    }
+    
+    .batch-inventory-table td {
+        padding: 6px 4px;
+        color: black !important;
+        border-right: 1px solid #ccc !important;
+    }
+    
+    .batch-zero-stock-row {
+        background-color: #f9f9f9 !important;
+    }
+    
+    .batch-product-link {
+        color: black !important;
+        text-decoration: none !important;
+    }
+    
+    .batch-zero-stock-badge {
+        background-color: #ccc !important;
+        color: black !important;
+    }
+    
+    .batch-table-footer {
+        background: #f0f0f0 !important;
+        border-top: 2px solid #000 !important;
+    }
+    
+    .batch-table-footer td {
+        color: black !important;
+        font-weight: bold;
+    }
+    
+    /* Page break control */
+    @page {
+        size: A4 landscape;
+        margin: 1cm;
+    }
+}
+
+/* Button loading states */
+.export-loading {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.export-pulse {
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
 }
 
 /* Comprehensive Mobile Responsiveness */

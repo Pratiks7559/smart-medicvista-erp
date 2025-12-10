@@ -5,6 +5,8 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% load static %}{% static 'css/batch_inventory_report.css' %}">
+<link rel="stylesheet" href="{% load static %}{% static 'css/inventory_export.css' %}">
+
 {% endblock %}
 
 {% block content %}
@@ -15,8 +17,17 @@
             <a href="{% url 'dateexpiry_inventory_report' %}" class="batch-report-btn batch-report-btn-primary">
                 <i class="fas fa-calendar-alt fa-sm"></i> Date-wise Inventory
             </a>
-            <a href="javascript:window.print()" class="batch-report-btn batch-report-btn-secondary">
-                <i class="fas fa-download fa-sm"></i> Print/Export
+
+            <!-- Print button hidden as per requirement -->
+            <!-- <button onclick="window.print()" class="batch-report-btn batch-report-btn-warning" id="print-btn" title="Print Report (Ctrl+P)" style="display:none;">
+                <i class="fas fa-print fa-sm"></i> Print (Ctrl+P)
+            </button> -->
+
+            <a href="{% url 'export_batch_inventory_pdf' %}{% if search_query %}?search={{ search_query }}{% endif %}" class="batch-report-btn batch-report-btn-success" id="export-pdf-btn">
+                <i class="fas fa-file-pdf fa-sm"></i> Export PDF (Ctrl+Q)
+            </a>
+            <a href="{% url 'export_batch_inventory_excel' %}{% if search_query %}?search={{ search_query }}{% endif %}" class="batch-report-btn batch-report-btn-info" id="export-excel-btn">
+                <i class="fas fa-file-excel fa-sm"></i> Export Excel (Ctrl+E)
             </a>
         </div>
     </div>
@@ -26,9 +37,10 @@
             <h6 class="batch-report-card-title">Batch-wise Inventory Report</h6>
             <small class="batch-report-card-subtitle">Shows all products including those with zero stock</small>
             <div class="no-print">
-                <form action="{% url 'batch_inventory_report' %}" method="GET" class="batch-search-form">
-                    <div class="batch-search-group">
-                        <input type="text" name="search" value="{{ search_query }}" placeholder="Search products..." aria-label="Search" class="batch-search-input">
+                <form action="{% url 'batch_inventory_report' %}" method="GET" class="batch-search-form" id="batchSearchForm">
+                    <div class="batch-search-group" style="position: relative;">
+                        <input type="text" name="search" id="batchSearchInput" value="{{ search_query }}" placeholder="Search products..." aria-label="Search" class="batch-search-input" autocomplete="off">
+                        <div id="batchSearchSuggestions" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #d1d3e2; border-top: none; max-height: 300px; overflow-y: auto; z-index: 1000; display: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"></div>
                     </div>
                     <div class="batch-search-actions">
                         <button type="submit" class="batch-search-btn batch-search-btn-primary">
@@ -153,9 +165,226 @@
 </div>
 {% endblock %}
 
-
-
-
-
-
-
+{% block extra_js %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    // Autocomplete search suggestions
+    $(document).ready(function() {
+        let searchTimeout, selectedIndex = -1;
+        
+        $('#batchSearchInput').on('input', function() {
+            const query = $(this).val().trim();
+            clearTimeout(searchTimeout);
+            selectedIndex = -1;
+            
+            if (query.length < 2) {
+                $('#batchSearchSuggestions').hide().empty();
+                return;
+            }
+            
+            searchTimeout = setTimeout(function() {
+                $.ajax({
+                    url: '{% url "inventory_search_suggestions" %}',
+                    data: { q: query },
+                    success: function(data) {
+                        const suggestions = data.suggestions;
+                        if (suggestions.length > 0) {
+                            let html = '';
+                            suggestions.forEach(function(item, idx) {
+                                html += `<div class="suggestion-item" data-index="${idx}" style="padding: 10px; cursor: pointer; border-bottom: 1px solid #eee;">${item}</div>`;
+                            });
+                            $('#batchSearchSuggestions').html(html).show();
+                            
+                            $('.suggestion-item').on('click', function() {
+                                const text = $(this).text().split(' - ')[0];
+                                $('#batchSearchInput').val(text);
+                                $('#batchSearchSuggestions').hide();
+                                $('#batchSearchForm').submit();
+                            }).on('mouseenter', function() {
+                                $('.suggestion-item').css('background', 'white');
+                                $(this).css('background', '#f0f0f0');
+                                selectedIndex = $(this).data('index');
+                            });
+                        } else {
+                            $('#batchSearchSuggestions').hide();
+                        }
+                    }
+                });
+            }, 300);
+        });
+        
+        // Keyboard navigation
+        $('#batchSearchInput').on('keydown', function(e) {
+            const items = $('.suggestion-item');
+            if (!items.length) return;
+            
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                selectedIndex = (selectedIndex + 1) % items.length;
+                updateSelection(items);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                selectedIndex = selectedIndex <= 0 ? items.length - 1 : selectedIndex - 1;
+                updateSelection(items);
+            } else if (e.key === 'Enter' && selectedIndex >= 0) {
+                e.preventDefault();
+                const text = items.eq(selectedIndex).text().split(' - ')[0];
+                $('#batchSearchInput').val(text);
+                $('#batchSearchSuggestions').hide();
+                $('#batchSearchForm').submit();
+            } else if (e.key === 'Escape') {
+                $('#batchSearchSuggestions').hide();
+            }
+        });
+        
+        function updateSelection(items) {
+            items.css('background', 'white');
+            if (selectedIndex >= 0) {
+                items.eq(selectedIndex).css('background', '#e3f2fd');
+                items.eq(selectedIndex)[0].scrollIntoView({ block: 'nearest' });
+            }
+        }
+        
+        $(document).on('click', function(e) {
+            if (!$(e.target).closest('.batch-search-group').length) {
+                $('#batchSearchSuggestions').hide();
+            }
+        });
+    });
+    
+    // Enhanced keyboard shortcuts for export with feedback
+    document.addEventListener('keydown', function(e) {
+        // Ctrl+P for Print
+        if (e.ctrlKey && e.key === 'p') {
+            e.preventDefault();
+            window.print();
+            showNotification('Opening print dialog...', 'info');
+        }
+        
+        // Ctrl+Q for PDF export
+        if (e.ctrlKey && e.key === 'q') {
+            e.preventDefault();
+            const pdfBtn = document.getElementById('export-pdf-btn');
+            if (pdfBtn) {
+                downloadAndOpenPDF(pdfBtn.href);
+            }
+        }
+        
+        // Ctrl+E for Excel export
+        if (e.ctrlKey && e.key === 'e') {
+            e.preventDefault();
+            const excelBtn = document.getElementById('export-excel-btn');
+            if (excelBtn) {
+                triggerExport(excelBtn, 'Excel');
+            }
+        }
+    });
+    
+    // Function to handle export with visual feedback
+    function triggerExport(button, type) {
+        // Add loading state
+        button.classList.add('export-loading');
+        button.classList.add('export-pulse');
+        
+        // Show notification
+        showNotification(`Generating ${type} export...`, 'info');
+        
+        // Trigger download
+        window.location.href = button.href;
+        
+        // Remove loading state after delay
+        setTimeout(() => {
+            button.classList.remove('export-loading');
+            button.classList.remove('export-pulse');
+            showNotification(`${type} export started!`, 'success');
+        }, 1500);
+    }
+    
+    // Simple notification function
+    function showNotification(message, type) {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = `alert alert-${type === 'success' ? 'success' : 'info'} alert-dismissible fade show`;
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            min-width: 300px;
+            animation: slideIn 0.3s ease;
+        `;
+        notification.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check-circle' : 'info-circle'}"></i> ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        // Add to page
+        document.body.appendChild(notification);
+        
+        // Auto remove after 3 seconds
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.remove();
+            }
+        }, 3000);
+    }
+    
+    // PDF download and auto-open function with timeout handling
+    function downloadAndOpenPDF(pdfUrl) {
+        showNotification('Generating PDF... Please wait', 'info');
+        
+        // For large data, use direct download + open approach
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = pdfUrl;
+        document.body.appendChild(iframe);
+        
+        // Open in new tab after short delay
+        setTimeout(() => {
+            window.open(pdfUrl, '_blank');
+            showNotification('PDF opened in new tab!', 'success');
+            setTimeout(() => document.body.removeChild(iframe), 2000);
+        }, 1500);
+    }
+    
+    // Add CSS for slide-in animation
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+    `;
+    document.head.appendChild(style);
+    
+    // Enhanced tooltips and click handlers
+    document.addEventListener('DOMContentLoaded', function() {
+        const pdfBtn = document.getElementById('export-pdf-btn');
+        const excelBtn = document.getElementById('export-excel-btn');
+        
+        if (pdfBtn) {
+            pdfBtn.title = 'Export as PDF (Ctrl+Q)';
+            pdfBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                downloadAndOpenPDF(this.href);
+            });
+        }
+        
+        if (excelBtn) {
+            excelBtn.title = 'Export as Excel (Ctrl+E)';
+            excelBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                triggerExport(this, 'Excel');
+            });
+        }
+        
+        // Show keyboard shortcut help on first visit
+        if (!localStorage.getItem('inventory_shortcuts_shown')) {
+            setTimeout(() => {
+                showNotification('💡 Tip: Use Ctrl+Q for PDF export, Ctrl+E for Excel export', 'info');
+                localStorage.setItem('inventory_shortcuts_shown', 'true');
+            }, 2000);
+        }
+    });
+</script>
+{% endblock %}
