@@ -664,3 +664,125 @@ class StockIssueDetail(models.Model):
         self.total_amount = self.quantity_issued * self.unit_rate
         super().save(*args, **kwargs)
 
+
+
+# ============================================
+# CONTRA ENTRY MODULE - START
+# ============================================
+class ContraEntry(models.Model):
+    """Model for Contra Entry - Fund transfer between Cash and Bank"""
+    CONTRA_TYPES = [
+        ('BANK_TO_CASH', 'Bank to Cash'),
+        ('CASH_TO_BANK', 'Cash to Bank'),
+    ]
+    
+    contra_id = models.BigAutoField(primary_key=True, auto_created=True)
+    contra_no = models.CharField(max_length=20, unique=True)
+    contra_date = models.DateField(default=timezone.now)
+    contra_type = models.CharField(max_length=20, choices=CONTRA_TYPES)
+    amount = models.FloatField(validators=[MinValueValidator(0.01)])
+    from_account = models.CharField(max_length=100, help_text="Bank name or 'Cash'")
+    to_account = models.CharField(max_length=100, help_text="Bank name or 'Cash'")
+    reference_no = models.CharField(max_length=50, blank=True, null=True)
+    narration = models.TextField(blank=True, null=True)
+    created_by = models.ForeignKey(Web_User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'contra_entry'
+        ordering = ['-contra_date', '-contra_id']
+        verbose_name = 'Contra Entry'
+        verbose_name_plural = 'Contra Entries'
+    
+    def __str__(self):
+        return f"Contra #{self.contra_no} - {self.get_contra_type_display()} - ₹{self.amount}"
+    
+    def save(self, *args, **kwargs):
+        if not self.contra_no:
+            # Generate contra number
+            last_contra = ContraEntry.objects.order_by('-contra_id').first()
+            if last_contra:
+                last_num = int(last_contra.contra_no.split('CE')[-1])
+                self.contra_no = f"CE{last_num + 1:06d}"
+            else:
+                self.contra_no = "CE000001"
+        super().save(*args, **kwargs)
+# ============================================
+# CONTRA ENTRY MODULE - END
+# ============================================
+
+# ============================================
+# INVENTORY CACHE TABLES - START
+# ============================================
+class ProductInventoryCache(models.Model):
+    """Cache table for product-level inventory summary"""
+    product = models.OneToOneField(ProductMaster, on_delete=models.CASCADE, primary_key=True, related_name='inventory_cache')
+    
+    # Stock Summary
+    total_stock = models.FloatField(default=0, db_index=True, help_text="Total stock across all batches")
+    total_batches = models.IntegerField(default=0, help_text="Number of active batches")
+    
+    # Financial Summary
+    avg_mrp = models.FloatField(default=0, help_text="Average MRP across batches")
+    avg_purchase_rate = models.FloatField(default=0, help_text="Average purchase rate")
+    total_stock_value = models.FloatField(default=0, help_text="Total stock value (stock × MRP)")
+    
+    # Status
+    stock_status = models.CharField(max_length=20, db_index=True, default='out_of_stock', 
+                                    help_text="in_stock, low_stock, out_of_stock")
+    has_expired_batches = models.BooleanField(default=False, db_index=True)
+    
+    # Timestamps
+    last_updated = models.DateTimeField(auto_now=True, db_index=True)
+    
+    class Meta:
+        db_table = 'product_inventory_cache'
+        indexes = [
+            models.Index(fields=['stock_status', 'total_stock']),
+            models.Index(fields=['has_expired_batches']),
+        ]
+    
+    def __str__(self):
+        return f"Cache: {self.product.product_name} - Stock: {self.total_stock}"
+
+class BatchInventoryCache(models.Model):
+    """Cache table for batch-level inventory details"""
+    product = models.ForeignKey(ProductMaster, on_delete=models.CASCADE, related_name='batch_caches')
+    batch_no = models.CharField(max_length=20, db_index=True)
+    expiry_date = models.CharField(max_length=7, help_text="Format: MM-YYYY")
+    
+    # Stock Details
+    current_stock = models.FloatField(default=0, db_index=True)
+    mrp = models.FloatField(default=0)
+    purchase_rate = models.FloatField(default=0)
+    
+    # Rates
+    rate_a = models.FloatField(default=0)
+    rate_b = models.FloatField(default=0)
+    rate_c = models.FloatField(default=0)
+    
+    # Status
+    is_expired = models.BooleanField(default=False, db_index=True)
+    expiry_status = models.CharField(max_length=20, default='valid', 
+                                     help_text="expired, expiring_soon, valid")
+    
+    # Timestamps
+    last_updated = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'batch_inventory_cache'
+        unique_together = [['product', 'batch_no', 'expiry_date']]
+        indexes = [
+            models.Index(fields=['product', 'current_stock']),
+            models.Index(fields=['is_expired']),
+            models.Index(fields=['expiry_date']),
+            models.Index(fields=['batch_no']),
+        ]
+        ordering = ['expiry_date', 'batch_no']
+    
+    def __str__(self):
+        return f"{self.product.product_name} - Batch: {self.batch_no} - Stock: {self.current_stock}"
+# ============================================
+# INVENTORY CACHE TABLES - END
+# ============================================
