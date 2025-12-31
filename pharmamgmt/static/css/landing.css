@@ -278,7 +278,7 @@ body::before {
 
 /* ===== Hero Section - Creative Layout ===== */
 .hero {
-    padding: 16rem 2rem 8rem;
+    padding: 12rem 2rem 6rem;
     position: relative;
 }
 
@@ -302,7 +302,7 @@ body::before {
 }
 
 .hero-content h1 {
-    font-size: 4.5rem;
+    font-size: 3rem;
     font-weight: 900;
     line-height: 1.1;
     margin-bottom: 1.5rem;
@@ -322,7 +322,7 @@ body::before {
 }
 
 .hero-content p {
-    font-size: 1.2rem;
+    font-size: 1.1rem;
     color: var(--gray-medium);
     line-height: 1.8;
     margin-bottom: 2rem;
@@ -411,7 +411,7 @@ body::before {
 }
 
 .about-content h2 {
-    font-size: 3.5rem;
+    font-size: 2.5rem;
     font-weight: 900;
     color: var(--gray-dark);
     margin-bottom: 1.5rem;
@@ -431,7 +431,7 @@ body::before {
 }
 
 .about-content p {
-    font-size: 1.15rem;
+    font-size: 1rem;
     color: var(--gray-medium);
     line-height: 1.9;
     margin-bottom: 1.5rem;
@@ -450,7 +450,7 @@ body::before {
 }
 
 .section-header h2 {
-    font-size: 4rem;
+    font-size: 2.5rem;
     font-weight: 900;
     color: var(--gray-dark);
     margin-bottom: 1rem;
@@ -471,7 +471,7 @@ body::before {
 }
 
 .section-header p {
-    font-size: 1.2rem;
+    font-size: 1rem;
     color: var(--gray-medium);
     margin-top: 2rem;
 }
@@ -567,6 +567,7 @@ body::before {
     color: var(--yellow-dark);
     font-size: 1.5rem;
     transition: all 0.3s ease;
+    z-index: 10;
 }
 
 .product-arrow:hover {
@@ -582,6 +583,28 @@ body::before {
 .gallery {
     padding: 8rem 2rem;
     background: white;
+}
+
+.gallery .products-slider-container {
+    position: relative;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 80px;
+    overflow: hidden;
+}
+
+.gallery .products-slider {
+    display: flex;
+    gap: 2rem;
+    transition: transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    will-change: transform;
+    overflow: visible;
+}
+
+.gallery .gallery-item {
+    min-width: 300px;
+    width: 300px;
+    flex-shrink: 0;
 }
 
 .gallery-grid {
@@ -609,7 +632,7 @@ body::before {
 
 .gallery-item img {
     width: 100%;
-    height: 300px;
+    height: 280px;
     object-fit: cover;
     display: block;
     transition: transform 0.4s ease;
@@ -848,6 +871,15 @@ body::before {
 
     .product-box {
         min-width: 100%;
+    }
+    
+    .gallery .products-slider-container {
+        padding: 0 60px;
+    }
+    
+    .gallery .gallery-item {
+        min-width: calc(100% - 4rem);
+        max-width: calc(100% - 4rem);
     }
 }
 
@@ -1581,7 +1613,7 @@ body::after {
 /* ========== FLIP CARD ANIMATION ========== */
 .flip-card {
     perspective: 1000px;
-    height: 480px;
+    height: 350px;
 }
 
 .flip-card-inner {
@@ -1692,13 +1724,13 @@ body::after {
 }
 
 .hero-icon {
-    font-size: 4rem;
+    font-size: 2.5rem;
     color: var(--yellow-primary);
     filter: drop-shadow(0 5px 15px rgba(251, 191, 36, 0.4));
 }
 
 .hero-subtitle {
-    font-size: 1.3rem;
+    font-size: 1.1rem;
     color: var(--gray-medium);
     margin: 2rem auto;
     max-width: 700px;
@@ -1717,7 +1749,7 @@ body::after {
 
 .stat-box {
     background: white;
-    padding: 2rem;
+    padding: 1.5rem;
     border-radius: 20px;
     border: 3px solid var(--yellow-primary);
     transition: all 0.4s ease;
@@ -1746,20 +1778,20 @@ body::after {
 }
 
 .stat-box i {
-    font-size: 2.5rem;
+    font-size: 2rem;
     color: var(--yellow-primary);
     margin-bottom: 1rem;
 }
 
 .stat-box h3 {
-    font-size: 2.5rem;
+    font-size: 2rem;
     font-weight: 900;
     color: var(--gray-dark);
     margin: 0.5rem 0;
 }
 
 .stat-box p {
-    font-size: 1rem;
+    font-size: 0.9rem;
     color: var(--gray-medium);
     margin: 0;
 }
@@ -1767,7 +1799,7 @@ body::after {
 /* ========== GALLERY FLIP CARDS ========== */
 .gallery-item.flip-card {
     perspective: 1000px;
-    height: 300px;
+    height: 280px;
 }
 
 .gallery-item .flip-card-inner {
@@ -2628,5 +2660,214 @@ body::after {
         padding: 0;
         justify-content: center;
         border-radius: 50%;
+    }
+}
+
+
+/* ========== PRODUCT BUY NOW BUTTON ========== */
+.product-buy-btn {
+    display: inline-block;
+    margin-top: 1.5rem;
+    padding: 0.8rem 2.5rem;
+    background: white;
+    color: var(--yellow-dark);
+    text-decoration: none;
+    border-radius: 50px;
+    font-weight: 700;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(255, 255, 255, 0.3);
+}
+
+.product-buy-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(255, 255, 255, 0.5);
+    background: #f3f4f6;
+}
+
+
+/* ========== VISION & MISSION SECTION ========== */
+.vision-mission {
+    padding: 6rem 2rem;
+    background: white;
+}
+
+.vm-container {
+    max-width: 1280px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 3rem;
+}
+
+.vm-card {
+    background: var(--yellow-light);
+    padding: 3rem;
+    border-radius: 20px;
+    border: 3px solid var(--yellow-primary);
+    text-align: center;
+    transition: all 0.4s ease;
+}
+
+.vm-card:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 20px 50px rgba(251, 191, 36, 0.3);
+}
+
+.vm-card i {
+    font-size: 3rem;
+    color: var(--yellow-primary);
+    margin-bottom: 1.5rem;
+}
+
+.vm-card h3 {
+    font-size: 2rem;
+    color: var(--gray-dark);
+    margin-bottom: 1rem;
+}
+
+.vm-card p {
+    font-size: 1rem;
+    color: var(--gray-medium);
+    line-height: 1.8;
+}
+
+.vm-card ul {
+    list-style: none;
+    text-align: left;
+    margin-top: 1rem;
+}
+
+.vm-card ul li {
+    padding: 0.5rem 0;
+    color: var(--gray-medium);
+    position: relative;
+    padding-left: 1.5rem;
+}
+
+.vm-card ul li::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    color: var(--yellow-primary);
+    font-weight: bold;
+}
+
+/* ========== WHY CHOOSE US SECTION ========== */
+.why-choose {
+    padding: 6rem 2rem;
+    background: var(--gray-light);
+}
+
+.why-grid {
+    max-width: 1280px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 2rem;
+}
+
+.why-card {
+    background: white;
+    padding: 2rem;
+    border-radius: 15px;
+    text-align: center;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.why-card:hover {
+    transform: translateY(-10px);
+    border-color: var(--yellow-primary);
+    box-shadow: 0 10px 30px rgba(251, 191, 36, 0.2);
+}
+
+.why-card i {
+    font-size: 2.5rem;
+    color: var(--yellow-primary);
+    margin-bottom: 1rem;
+}
+
+.why-card h4 {
+    font-size: 1.1rem;
+    color: var(--gray-dark);
+}
+
+/* ========== CORE VALUES SECTION ========== */
+.core-values {
+    padding: 6rem 2rem;
+    background: white;
+}
+
+.values-grid {
+    max-width: 1280px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 2rem;
+}
+
+.value-card {
+    background: linear-gradient(135deg, var(--yellow-light), white);
+    padding: 2rem;
+    border-radius: 15px;
+    text-align: center;
+    transition: all 0.3s ease;
+    border: 2px solid var(--yellow-primary);
+}
+
+.value-card:hover {
+    transform: scale(1.05);
+    box-shadow: 0 15px 40px rgba(251, 191, 36, 0.3);
+}
+
+.value-card i {
+    font-size: 2.5rem;
+    color: var(--yellow-dark);
+    margin-bottom: 1rem;
+}
+
+.value-card h4 {
+    font-size: 1.1rem;
+    color: var(--gray-dark);
+    font-weight: 600;
+}
+
+/* ========== LEADERSHIP SECTION ========== */
+.leadership {
+    padding: 4rem 2rem;
+    background: linear-gradient(135deg, var(--yellow-primary), var(--yellow-dark));
+}
+
+.leadership-container {
+    max-width: 900px;
+    margin: 0 auto;
+    text-align: center;
+    color: white;
+}
+
+.leadership-container i {
+    font-size: 4rem;
+    margin-bottom: 1.5rem;
+}
+
+.leadership-container h3 {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+}
+
+.leadership-container p {
+    font-size: 1.1rem;
+    line-height: 1.8;
+}
+
+/* ========== RESPONSIVE ========== */
+@media (max-width: 768px) {
+    .vm-container {
+        grid-template-columns: 1fr;
+    }
+    
+    .why-grid, .values-grid {
+        grid-template-columns: 1fr;
     }
 }

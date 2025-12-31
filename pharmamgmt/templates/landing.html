@@ -94,7 +94,7 @@
                         <i class="fas fa-pills hero-icon pulse" data-tooltip="Ayurvedic"></i>
                         <i class="fas fa-heart hero-icon rotate" data-tooltip="Wellness"></i>
                     </div>
-                    <h1 id="hero-heading" class="typewriter">Premium Herbal & Ayurvedic Products</h1>
+                    <h1 id="hero-heading" class="typewriter">Premium Herbal Products</h1>
                     <p class="hero-subtitle fade-in">Discover the power of nature with our 100% organic herbal supplements. Boost your immunity, improve wellness, and embrace natural healing with certified ayurvedic products.</p>
                     <div class="hero-stats">
                         <div class="stat-box">
@@ -134,8 +134,9 @@
                 
                 <article class="about-content scroll-reveal-left">
                     <h2 id="about-heading">About MedicVista</h2>
-                    <p>MedicVista is your trusted source for premium herbal and ayurvedic products. We source the finest organic herbs from certified farms across India, ensuring purity and potency in every product. Our traditional formulations are backed by modern science to deliver effective natural wellness solutions.</p>
-                    <p>With over 50,000 satisfied customers, we're committed to bringing the ancient wisdom of Ayurveda to modern lifestyles. All our products are 100% natural, free from chemicals, and manufactured in ISO-certified facilities.</p>
+                    <p>Committed to Quality. Driven by Care.</p>
+                    <p>
+Medicvista Pharma Pvt. Ltd. is a fast-growing pharmaceutical company dedicated to providing high-quality, affordable, and  marketed healthcare products . We focus on trusted formulations, strong distribution networks, and long-term healthcare partnerships.</p>
                 </article>
             </div>
         </section>
@@ -149,90 +150,237 @@
                 <p>100% natural herbal supplements for complete wellness</p>
             </header>
 
-            <div class="gallery-grid" role="list">
-                <article class="gallery-item flip-card" role="listitem">
-                    <div class="flip-card-inner">
-                        <div class="flip-card-front">
-                            <img src="https://images.unsplash.com/photo-1505751172876-fa1923c5c528?w=400&h=300&fit=crop" 
-                                 alt="Immunity Booster" 
-                                 loading="lazy">
-                        </div>
-                        <div class="flip-card-back gallery-back">
-                            <h3>Immunity Booster</h3>
-                            <p>Powerful blend of Ashwagandha, Tulsi, and Giloy to strengthen your immune system. Protects against infections, reduces stress, and enhances overall vitality. 100% organic ingredients. ₹599 for 60 capsules.</p>
-                        </div>
-                    </div>
-                </article>
+            <div class="products-slider-container">
+                <button class="product-arrow product-arrow-left" id="galleryPrevBtn" aria-label="Previous Products">
+                    <i class="fas fa-chevron-left" aria-hidden="true"></i>
+                </button>
                 
-                <article class="gallery-item flip-card" role="listitem">
-                    <div class="flip-card-inner">
-                        <div class="flip-card-front">
-                            <img src="https://images.unsplash.com/photo-1587854692152-cbe660dbde88?w=400&h=300&fit=crop" 
-                                 alt="Digestive Care" 
-                                 loading="lazy">
+                <div class="gallery-grid products-slider" id="gallerySlider" role="list">
+                    <article class="gallery-item flip-card" role="listitem">
+                        <div class="flip-card-inner">
+                            <div class="flip-card-front">
+                                <img src="{% static 'p1.jpg' %}" alt="Product 1" loading="lazy">
+                            </div>
+                            <div class="flip-card-back gallery-back">
+                                <h3>Herbal Product 1</h3>
+                                <p>Premium quality herbal supplement for your wellness needs.</p>
+                                <a href="{% url 'login' %}" class="product-buy-btn">Buy Now</a>
+                            </div>
                         </div>
-                        <div class="flip-card-back gallery-back">
-                            <h3>Digestive Care</h3>
-                            <p>Natural digestive formula with Triphala, Ajwain, and Jeera. Relieves bloating, improves gut health, and promotes healthy digestion. Ayurvedic blend for daily wellness. ₹449 for 90 tablets.</p>
+                    </article>
+                    
+                    <article class="gallery-item flip-card" role="listitem">
+                        <div class="flip-card-inner">
+                            <div class="flip-card-front">
+                                <img src="{% static 'p2.jpg' %}" alt="Product 2" loading="lazy">
+                            </div>
+                            <div class="flip-card-back gallery-back">
+                                <h3>Herbal Product 2</h3>
+                                <p>Natural wellness solution for daily health.</p>
+                                <a href="{% url 'login' %}" class="product-buy-btn">Buy Now</a>
+                            </div>
                         </div>
-                    </div>
-                </article>
+                    </article>
+                    
+                    <article class="gallery-item flip-card" role="listitem">
+                        <div class="flip-card-inner">
+                            <div class="flip-card-front">
+                                <img src="{% static 'p3.jpg' %}" alt="Product 3" loading="lazy">
+                            </div>
+                            <div class="flip-card-back gallery-back">
+                                <h3>Herbal Product 3</h3>
+                                <p>Ayurvedic formulation for holistic health.</p>
+                                <a href="{% url 'login' %}" class="product-buy-btn">Buy Now</a>
+                            </div>
+                        </div>
+                    </article>
+                    
+                    <article class="gallery-item flip-card" role="listitem">
+                        <div class="flip-card-inner">
+                            <div class="flip-card-front">
+                                <img src="{% static 'p4.jpg' %}" alt="Product 4" loading="lazy">
+                            </div>
+                            <div class="flip-card-back gallery-back">
+                                <h3>Herbal Product 4</h3>
+                                <p>Traditional herbs for modern wellness.</p>
+                                <a href="{% url 'login' %}" class="product-buy-btn">Buy Now</a>
+                            </div>
+                        </div>
+                    </article>
+                    
+                    <article class="gallery-item flip-card" role="listitem">
+                        <div class="flip-card-inner">
+                            <div class="flip-card-front">
+                                <img src="{% static 'p5.jpg' %}" alt="Product 5" loading="lazy">
+                            </div>
+                            <div class="flip-card-back gallery-back">
+                                <h3>Herbal Product 5</h3>
+                                <p>Natural remedy for better health.</p>
+                                <a href="{% url 'login' %}" class="product-buy-btn">Buy Now</a>
+                            </div>
+                        </div>
+                    </article>
+                    
+                    <article class="gallery-item flip-card" role="listitem">
+                        <div class="flip-card-inner">
+                            <div class="flip-card-front">
+                                <img src="{% static 'p6.jpg' %}" alt="Product 6" loading="lazy">
+                            </div>
+                            <div class="flip-card-back gallery-back">
+                                <h3>Herbal Product 6</h3>
+                                <p>Organic supplement for vitality.</p>
+                                <a href="{% url 'login' %}" class="product-buy-btn">Buy Now</a>
+                            </div>
+                        </div>
+                    </article>
+                    
+                    <article class="gallery-item flip-card" role="listitem">
+                        <div class="flip-card-inner">
+                            <div class="flip-card-front">
+                                <img src="{% static 'p7.jpg' %}" alt="Product 7" loading="lazy">
+                            </div>
+                            <div class="flip-card-back gallery-back">
+                                <h3>Herbal Product 7</h3>
+                                <p>Pure herbal extract for wellness.</p>
+                                <a href="{% url 'login' %}" class="product-buy-btn">Buy Now</a>
+                            </div>
+                        </div>
+                    </article>
+                    
+                    <article class="gallery-item flip-card" role="listitem">
+                        <div class="flip-card-inner">
+                            <div class="flip-card-front">
+                                <img src="{% static 'p8.jpg' %}" alt="Product 8" loading="lazy">
+                            </div>
+                            <div class="flip-card-back gallery-back">
+                                <h3>Herbal Product 8</h3>
+                                <p>Natural health booster.</p>
+                                <a href="{% url 'login' %}" class="product-buy-btn">Buy Now</a>
+                            </div>
+                        </div>
+                    </article>
+                    
+                    <article class="gallery-item flip-card" role="listitem">
+                        <div class="flip-card-inner">
+                            <div class="flip-card-front">
+                                <img src="{% static 'p9.jpg' %}" alt="Product 9" loading="lazy">
+                            </div>
+                            <div class="flip-card-back gallery-back">
+                                <h3>Herbal Product 9</h3>
+                                <p>Ayurvedic wellness solution.</p>
+                                <a href="{% url 'login' %}" class="product-buy-btn">Buy Now</a>
+                            </div>
+                        </div>
+                    </article>
+                    
+                    <article class="gallery-item flip-card" role="listitem">
+                        <div class="flip-card-inner">
+                            <div class="flip-card-front">
+                                <img src="{% static 'p10.jpg' %}" alt="Product 10" loading="lazy">
+                            </div>
+                            <div class="flip-card-back gallery-back">
+                                <h3>Herbal Product 10</h3>
+                                <p>Traditional herbal remedy.</p>
+                                <a href="{% url 'login' %}" class="product-buy-btn">Buy Now</a>
+                            </div>
+                        </div>
+                    </article>
+                    
+                    <article class="gallery-item flip-card" role="listitem">
+                        <div class="flip-card-inner">
+                            <div class="flip-card-front">
+                                <img src="{% static 'p11.jpg' %}" alt="Product 11" loading="lazy">
+                            </div>
+                            <div class="flip-card-back gallery-back">
+                                <h3>Herbal Product 11</h3>
+                                <p>Natural health supplement.</p>
+                                <a href="{% url 'login' %}" class="product-buy-btn">Buy Now</a>
+                            </div>
+                        </div>
+                    </article>
+                    
+                    <article class="gallery-item flip-card" role="listitem">
+                        <div class="flip-card-inner">
+                            <div class="flip-card-front">
+                                <img src="{% static 'p12.jpg' %}" alt="Product 12" loading="lazy">
+                            </div>
+                            <div class="flip-card-back gallery-back">
+                                <h3>Herbal Product 12</h3>
+                                <p>Organic wellness product.</p>
+                                <a href="{% url 'login' %}" class="product-buy-btn">Buy Now</a>
+                            </div>
+                        </div>
+                    </article>
+                    
+                    <article class="gallery-item flip-card" role="listitem">
+                        <div class="flip-card-inner">
+                            <div class="flip-card-front">
+                                <img src="{% static 'p13.jpg' %}" alt="Product 13" loading="lazy">
+                            </div>
+                            <div class="flip-card-back gallery-back">
+                                <h3>Herbal Product 13</h3>
+                                <p>Pure herbal formulation.</p>
+                                <a href="{% url 'login' %}" class="product-buy-btn">Buy Now</a>
+                            </div>
+                        </div>
+                    </article>
+                    
+                    <article class="gallery-item flip-card" role="listitem">
+                        <div class="flip-card-inner">
+                            <div class="flip-card-front">
+                                <img src="{% static 'p14.jpg' %}" alt="Product 14" loading="lazy">
+                            </div>
+                            <div class="flip-card-back gallery-back">
+                                <h3>Herbal Product 14</h3>
+                                <p>Natural health enhancer.</p>
+                                <a href="{% url 'login' %}" class="product-buy-btn">Buy Now</a>
+                            </div>
+                        </div>
+                    </article>
+                    
+                    <article class="gallery-item flip-card" role="listitem">
+                        <div class="flip-card-inner">
+                            <div class="flip-card-front">
+                                <img src="{% static 'p15.jpg' %}" alt="Product 15" loading="lazy">
+                            </div>
+                            <div class="flip-card-back gallery-back">
+                                <h3>Herbal Product 15</h3>
+                                <p>Ayurvedic health solution.</p>
+                                <a href="{% url 'login' %}" class="product-buy-btn">Buy Now</a>
+                            </div>
+                        </div>
+                    </article>
+                    
+                    <article class="gallery-item flip-card" role="listitem">
+                        <div class="flip-card-inner">
+                            <div class="flip-card-front">
+                                <img src="{% static 'p16.jpg' %}" alt="Product 16" loading="lazy">
+                            </div>
+                            <div class="flip-card-back gallery-back">
+                                <h3>Herbal Product 16</h3>
+                                <p>Traditional wellness product.</p>
+                                <a href="{% url 'login' %}" class="product-buy-btn">Buy Now</a>
+                            </div>
+                        </div>
+                    </article>
+                    
+                    <article class="gallery-item flip-card" role="listitem">
+                        <div class="flip-card-inner">
+                            <div class="flip-card-front">
+                                <img src="{% static 'p17.jpg' %}" alt="Product 17" loading="lazy">
+                            </div>
+                            <div class="flip-card-back gallery-back">
+                                <h3>Herbal Product 17</h3>
+                                <p>Natural herbal supplement.</p>
+                                <a href="{% url 'login' %}" class="product-buy-btn">Buy Now</a>
+                            </div>
+                        </div>
+                    </article>
+                </div>
                 
-                <article class="gallery-item flip-card" role="listitem">
-                    <div class="flip-card-inner">
-                        <div class="flip-card-front">
-                            <img src="https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=400&h=300&fit=crop" 
-                                 alt="Joint Pain Relief" 
-                                 loading="lazy">
-                        </div>
-                        <div class="flip-card-back gallery-back">
-                            <h3>Joint Pain Relief</h3>
-                            <p>Herbal pain relief with Shallaki, Guggul, and Turmeric. Reduces inflammation, improves mobility, and strengthens bones naturally. Clinically tested formula. ₹699 for 60 capsules.</p>
-                        </div>
-                    </div>
-                </article>
-                
-                <article class="gallery-item flip-card" role="listitem">
-                    <div class="flip-card-inner">
-                        <div class="flip-card-front">
-                            <img src="https://images.unsplash.com/photo-1512290923902-8a9f81dc236c?w=400&h=300&fit=crop" 
-                                 alt="Stress Relief" 
-                                 loading="lazy">
-                        </div>
-                        <div class="flip-card-back gallery-back">
-                            <h3>Stress Relief</h3>
-                            <p>Calming blend of Brahmi, Shankhpushpi, and Jatamansi. Reduces anxiety, improves sleep quality, and enhances mental clarity. Perfect for modern lifestyle stress. ₹549 for 60 capsules.</p>
-                        </div>
-                    </div>
-                </article>
-                
-                <article class="gallery-item flip-card" role="listitem">
-                    <div class="flip-card-inner">
-                        <div class="flip-card-front">
-                            <img src="https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=400&h=300&fit=crop" 
-                                 alt="Hair Care Oil" 
-                                 loading="lazy">
-                        </div>
-                        <div class="flip-card-back gallery-back">
-                            <h3>Hair Care Oil</h3>
-                            <p>Nourishing hair oil with Bhringraj, Amla, and Coconut. Prevents hair fall, promotes growth, and adds natural shine. Traditional Ayurvedic formula. ₹399 for 200ml bottle.</p>
-                        </div>
-                    </div>
-                </article>
-                
-                <article class="gallery-item flip-card" role="listitem">
-                    <div class="flip-card-inner">
-                        <div class="flip-card-front">
-                            <img src="https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400&h=300&fit=crop" 
-                                 alt="Skin Glow Cream" 
-                                 loading="lazy">
-                        </div>
-                        <div class="flip-card-back gallery-back">
-                            <h3>Skin Glow Cream</h3>
-                            <p>Natural face cream with Saffron, Aloe Vera, and Sandalwood. Brightens complexion, reduces dark spots, and provides deep hydration. Chemical-free beauty. ₹649 for 50g jar.</p>
-                        </div>
-                    </div>
-                </article>
+                <button class="product-arrow product-arrow-right" id="galleryNextBtn" aria-label="Next Products">
+                    <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                </button>
             </div>
         </section>
 
@@ -334,6 +482,96 @@
             </div>
         </section>
 
+        <!-- Vision & Mission Section -->
+        <section class="vision-mission scroll-reveal">
+            <div class="vm-container">
+                <div class="vm-card">
+                    <i class="fas fa-eye"></i>
+                    <h3>Our Vision</h3>
+                    <p>To become a trusted pharmaceutical brand recognized for quality, ethics, and innovation in healthcare delivery.</p>
+                </div>
+                <div class="vm-card">
+                    <i class="fas fa-bullseye"></i>
+                    <h3>Our Mission</h3>
+                    <ul>
+                        <li>Deliver safe, effective, and affordable medicines</li>
+                        <li>Build long-term partnerships with healthcare professionals</li>
+                        <li>Follow marketing and regulatory compliance</li>
+                        <li>Continuously improve healthcare accessibility</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Why Choose Us Section -->
+        <section class="why-choose scroll-reveal">
+            <header class="section-header">
+                <h2>Why MedicVista Pharma?</h2>
+                <p>Your trusted partner in healthcare excellence</p>
+            </header>
+            <div class="why-grid">
+                <div class="why-card">
+                    <i class="fas fa-check-circle"></i>
+                    <h4>Quality-Assured Products</h4>
+                </div>
+                <div class="why-card">
+                    <i class="fas fa-handshake"></i>
+                    <h4>Ethical Business Practices</h4>
+                </div>
+                <div class="why-card">
+                    <i class="fas fa-certificate"></i>
+                    <h4>WHO-GMP Compliant</h4>
+                </div>
+                <div class="why-card">
+                    <i class="fas fa-truck-loading"></i>
+                    <h4>Strong Supply Chain</h4>
+                </div>
+                <div class="why-card">
+                    <i class="fas fa-file-alt"></i>
+                    <h4>Transparent Documentation</h4>
+                </div>
+            </div>
+        </section>
+
+        <!-- Core Values Section -->
+        <section class="core-values scroll-reveal">
+            <header class="section-header">
+                <h2>Our Core Values</h2>
+                <p>Principles that guide everything we do</p>
+            </header>
+            <div class="values-grid">
+                <div class="value-card">
+                    <i class="fas fa-star"></i>
+                    <h4>Quality First</h4>
+                </div>
+                <div class="value-card">
+                    <i class="fas fa-balance-scale"></i>
+                    <h4>Integrity & Ethics</h4>
+                </div>
+                <div class="value-card">
+                    <i class="fas fa-user-md"></i>
+                    <h4>Patient-Centric Approach</h4>
+                </div>
+                <div class="value-card">
+                    <i class="fas fa-eye"></i>
+                    <h4>Transparency</h4>
+                </div>
+                <div class="value-card">
+                    <i class="fas fa-chart-line"></i>
+                    <h4>Continuous Improvement</h4>
+                </div>
+            </div>
+        </section>
+
+        <!-- Leadership Section -->
+        <section class="leadership scroll-reveal">
+            <div class="leadership-container">
+                <i class="fas fa-users-cog"></i>
+                <h3>Leadership</h3>
+                <p>MedicVista Pharma Pvt. Ltd. is guided by experienced leadership committed to sustainable growth, compliance, and ethical pharmaceutical practices.</p>
+            </div>
+        </section>
+
         <!-- Testimonials Section -->
         <section class="testimonials scroll-reveal" id="testimonials">
             <header class="section-header">
@@ -408,11 +646,11 @@
             <div class="faq-container">
                 <article class="faq-item stagger-item">
                     <button class="faq-question">
-                        <span>Are your products 100% natural?</span>
+                        <span>Are your products 100% Pure?</span>
                         <i class="fas fa-chevron-down"></i>
                     </button>
                     <div class="faq-answer">
-                        <p>Yes, all our products are made from 100% natural herbs sourced from certified organic farms. We don't use any artificial additives, preservatives, or chemicals.</p>
+                        <p>Yes, all our products are made from 100% Pure herbs sourced from certified organic farms. We don't use any artificial additives, preservatives, or chemicals.</p>
                     </div>
                 </article>
 
@@ -820,6 +1058,53 @@
                     }, 100);
                 }
             }, 500);
+            
+            // Gallery Slider - 3 products at a time
+            const gallerySlider = document.getElementById('gallerySlider');
+            const galleryPrevBtn = document.getElementById('galleryPrevBtn');
+            const galleryNextBtn = document.getElementById('galleryNextBtn');
+            let currentGalleryIndex = 0;
+            const itemsPerSlide = 3;
+            
+            function updateGallerySlider() {
+                const items = gallerySlider.querySelectorAll('.gallery-item');
+                if (items.length === 0) return;
+                
+                const itemWidth = 300;
+                const gap = 32;
+                const offset = currentGalleryIndex * itemsPerSlide * (itemWidth + gap);
+                gallerySlider.style.transform = `translateX(-${offset}px)`;
+                
+                const maxIndex = Math.ceil(items.length / itemsPerSlide) - 1;
+                
+                if (galleryPrevBtn && galleryNextBtn) {
+                    galleryPrevBtn.style.opacity = currentGalleryIndex === 0 ? '0.5' : '1';
+                    galleryPrevBtn.style.cursor = currentGalleryIndex === 0 ? 'not-allowed' : 'pointer';
+                    galleryNextBtn.style.opacity = currentGalleryIndex >= maxIndex ? '0.5' : '1';
+                    galleryNextBtn.style.cursor = currentGalleryIndex >= maxIndex ? 'not-allowed' : 'pointer';
+                }
+            }
+            
+            if (galleryPrevBtn && galleryNextBtn) {
+                galleryPrevBtn.addEventListener('click', () => {
+                    if (currentGalleryIndex > 0) {
+                        currentGalleryIndex--;
+                        updateGallerySlider();
+                    }
+                });
+                
+                galleryNextBtn.addEventListener('click', () => {
+                    const items = gallerySlider.querySelectorAll('.gallery-item');
+                    const maxIndex = Math.ceil(items.length / itemsPerSlide) - 1;
+                    
+                    if (currentGalleryIndex < maxIndex) {
+                        currentGalleryIndex++;
+                        updateGallerySlider();
+                    }
+                });
+                
+                updateGallerySlider();
+            }
         });
     </script>
 </body>
