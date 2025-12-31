@@ -6,10 +6,7 @@
 
 body {
     font-family: 'Inter', sans-serif;
-    background: linear-gradient(135deg, rgba(102, 126, 234, 0.9) 0%, rgba(118, 75, 162, 0.9) 100%),
-                url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320"><path fill="%23ffffff" fill-opacity="0.1" d="M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,122.7C672,117,768,139,864,154.7C960,171,1056,181,1152,165.3C1248,149,1344,107,1392,85.3L1440,64L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>');
-    background-size: cover;
-    background-position: center;
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 50%, #fcd34d 100%);
     background-attachment: fixed;
     min-height: 100vh;
     display: flex;
@@ -27,14 +24,16 @@ body {
 }
 
 .login-box {
-    background: rgba(255, 255, 255, 0.98);
+    background: rgba(229, 216, 216, 0.95);
     backdrop-filter: blur(10px);
     border-radius: 20px;
     padding: 2rem 1.5rem;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 10px 40px rgba(245, 158, 11, 0.2);
     width: 100%;
     max-width: 380px;
     animation: fadeIn 0.6s ease;
+    border: 1px solid rgba(245, 158, 11, 0.1);
+    margin-top: 20px;
 }
 
 @keyframes fadeIn {
@@ -48,28 +47,26 @@ body {
 }
 
 .logo-circle {
-    width: 60px;
-    height: 60px;
-    background: linear-gradient(135deg, #667eea, #764ba2);
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, #f59e0b, #d97706);
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     margin: 0 auto 0.8rem;
-    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+    box-shadow: 0 8px 20px rgba(245, 158, 11, 0.4);
 }
 
-.logo-circle img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    border-radius: 50%;
+.logo-circle i {
+    font-size: 2.5rem;
+    color: white;
 }
 
 .logo-section h1 {
     font-size: 24px;
     font-weight: 700;
-    background: linear-gradient(135deg, #667eea, #764ba2);
+    background: linear-gradient(135deg, #f59e0b, #d97706);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -128,12 +125,12 @@ body {
 
 .input-wrap input:focus {
     outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    border-color: #f59e0b;
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
 }
 
 .input-wrap input:focus + i {
-    color: #667eea;
+    color: #f59e0b;
 }
 
 .err {
@@ -145,7 +142,7 @@ body {
 }
 
 .btn-login {
-    background: linear-gradient(135deg, #667eea, #764ba2);
+    background: linear-gradient(135deg, #f59e0b, #d97706);
     color: white;
     border: none;
     padding: 14px;
@@ -164,7 +161,7 @@ body {
 
 .btn-login:hover {
     transform: translateY(-2px);
-    box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+    box-shadow: 0 10px 25px rgba(245, 158, 11, 0.4);
 }
 
 .btn-login:active {
@@ -179,14 +176,14 @@ body {
 }
 
 .contact-text a {
-    color: #667eea;
+    color: #f59e0b;
     text-decoration: none;
     font-weight: 600;
     transition: color 0.3s;
 }
 
 .contact-text a:hover {
-    color: #764ba2;
+    color: #d97706;
     text-decoration: underline;
 }
 

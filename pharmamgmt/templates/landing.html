@@ -4,259 +4,822 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MedicVista - Complete Pharmacy Management Solution</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <meta name="description" content="MedicVista - Premium Medical Herbal Products for Natural Wellness">
+    <meta name="keywords" content="herbal medicine, ayurvedic products, natural wellness, organic herbs">
+    <title>MedicVista - Premium Medical Herbal Products</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{% static 'css/landing.css' %}">
 </head>
 <body>
-    <!-- Navbar -->
-    <nav class="navbar">
-        <div class="nav-container">
-            <a href="#" class="nav-brand">
-                <img src="{% static 'weblogo.jpeg' %}" alt="MedicVista Logo" class="nav-logo">
-                <span class="nav-title">MedicVista</span>
-            </a>
-            <ul class="nav-links">
-                <li><a href="#home">Home</a></li>
-                <li><a href="#features">Features</a></li>
-                <li><a href="#about">About</a></li>
-                <li><a href="#contact">Contact</a></li>
-                <li><a href="{% url 'login' %}" class="login-btn">Login</a></li>
-            </ul>
-            <button class="mobile-menu-btn">
-                <i class="fas fa-bars"></i>
-            </button>
-        </div>
-    </nav>
+    <!-- Scroll Progress Bar -->
+    <div class="scroll-progress-bar"></div>
 
-    <!-- Hero Section -->
-    <section class="hero" id="home">
-        <div class="hero-container">
-            <div class="hero-content">
-                <h1>Transform Your Pharmacy Management</h1>
-                <p>Complete digital solution for modern pharmacies. Manage inventory, billing, customers, and reports all in one place.</p>
-                <div class="hero-buttons">
-                    <a href="{% url 'login' %}" class="btn-primary">Get Started</a>
-                    <a href="#features" class="btn-secondary">Learn More</a>
-                </div>
-            </div>
-            <div class="hero-card">
-                <h3>Why Choose MedicVista?</h3>
-                <p>Trusted by pharmacies nationwide for efficient management</p>
-                <div class="hero-stats">
-                    <div class="stat-item">
-                        <h4>25+</h4>
-                        <p>Active Users</p>
-                    </div>
-                    <div class="stat-item">
-                        <h4>99.9%</h4>
-                        <p>Uptime</p>
-                    </div>
-                    <div class="stat-item">
-                        <h4>24/7</h4>
-                        <p>Support</p>
-                    </div>
-                    <div class="stat-item">
-                        <h4>100%</h4>
-                        <p>Secure</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
+    <!-- Golden Moving Strings -->
+    <div class="golden-strings">
+        <div class="golden-string"></div>
+        <div class="golden-string"></div>
+        <div class="golden-string"></div>
+        <div class="golden-string"></div>
+        <div class="golden-string"></div>
+    </div>
 
-    <!-- Features Section -->
-    <section class="features" id="features">
-        <div class="section-header">
-            <h2>Powerful Features</h2>
-            <p>Everything you need to run your pharmacy efficiently</p>
-        </div>
-        <div class="features-grid">
-            <div class="feature-card">
-                <div class="feature-icon">
-                    <i class="fas fa-boxes"></i>
+    <!-- Golden Particles -->
+    <div class="golden-particles" id="goldenParticles"></div>
+
+    <!-- Sticky CTA Button -->
+    <a href="{% url 'login' %}" class="sticky-cta-btn">
+        <i class="fas fa-shopping-cart"></i>
+        <span>Shop Now</span>
+    </a>
+
+    <!-- ========== HEADER NAVIGATION ========== -->
+    <header>
+        <nav class="navbar" role="navigation" aria-label="Main Navigation">
+            <div class="nav-container">
+                <!-- Brand Logo -->
+                <a href="#home" class="nav-brand" aria-label="MedicVista Home">
+                    <img src="{% static 'weblogo.jpeg' %}" alt="MedicVista Logo" class="nav-logo">
+                    <span class="nav-title">MedicVista</span>
+                </a>
+
+                <!-- Navigation Menu -->
+                <ul class="nav-links" role="menubar">
+                    <li role="none"><a href="#home" class="navlink active" role="menuitem">Home</a></li>
+                    <li role="none"><a href="#about" class="navlink" role="menuitem">About</a></li>
+                    <li role="none"><a href="#gallery" class="navlink" role="menuitem">Gallery</a></li>
+                    <li role="none"><a href="#process" class="navlink" role="menuitem">How It Works</a></li>
+                    <li role="none"><a href="#contact" class="navlink" role="menuitem">Contact</a></li>
+                    
+                    <!-- Mobile Only Actions -->
+                    <li class="mobile-only" role="none">
+                        <a href="https://wa.me/919595663391" class="whatsapp-btn-mobile" target="_blank" rel="noopener" aria-label="Contact on WhatsApp">
+                            <i class="fab fa-whatsapp" aria-hidden="true"></i> WhatsApp
+                        </a>
+                    </li>
+                    <li class="mobile-only" role="none">
+                        <a href="{% url 'login' %}" class="login-btn-mobile" aria-label="Login to Account">
+                            <i class="fas fa-sign-in-alt" aria-hidden="true"></i> Login
+                        </a>
+                    </li>
+                </ul>
+
+                <!-- Desktop Actions -->
+                <div class="nav-actions">
+                    <a href="https://wa.me/919423192253" class="whatsapp-btn" target="_blank" rel="noopener" aria-label="Contact on WhatsApp">
+                        <i class="fab fa-whatsapp" aria-hidden="true"></i> WhatsApp
+                    </a>
+                    <a href="{% url 'login' %}" class="login-btn" aria-label="Login to Account">
+                        <i class="fas fa-sign-in-alt" aria-hidden="true"></i> Login
+                    </a>
                 </div>
-                <h3>Inventory Management</h3>
-                <p>Track stock levels, batch numbers, expiry dates, and get low stock alerts automatically</p>
+
+                <!-- Mobile Menu Toggle -->
+                <button class="mobile-menu-btn" aria-label="Toggle Navigation Menu" aria-expanded="false">
+                    <i class="fas fa-bars" aria-hidden="true"></i>
+                </button>
             </div>
-            <div class="feature-card">
-                <div class="feature-icon">
-                    <i class="fas fa-file-invoice-dollar"></i>
+        </nav>
+    </header>
+
+    <!-- ========== MAIN CONTENT ========== -->
+    <main>
+        <!-- Hero Section -->
+        <section class="hero" id="home" aria-labelledby="hero-heading">
+            <div class="hero-container hero-fullwidth">
+                <article class="hero-content-center">
+                    <div class="hero-icon-wrapper">
+                        <i class="fas fa-leaf hero-icon bounce" data-tooltip="100% Natural"></i>
+                        <i class="fas fa-pills hero-icon pulse" data-tooltip="Ayurvedic"></i>
+                        <i class="fas fa-heart hero-icon rotate" data-tooltip="Wellness"></i>
+                    </div>
+                    <h1 id="hero-heading" class="typewriter">Premium Herbal & Ayurvedic Products</h1>
+                    <p class="hero-subtitle fade-in">Discover the power of nature with our 100% organic herbal supplements. Boost your immunity, improve wellness, and embrace natural healing with certified ayurvedic products.</p>
+                    <div class="hero-stats">
+                        <div class="stat-box">
+                            <i class="fas fa-users"></i>
+                            <h3 class="counter" data-target="50000">0</h3>
+                            <p>Happy Customers</p>
+                        </div>
+                        <div class="stat-box">
+                            <i class="fas fa-leaf"></i>
+                            <h3 class="counter" data-target="100">0</h3>
+                            <p>% Natural</p>
+                        </div>
+                        <div class="stat-box">
+                            <i class="fas fa-certificate"></i>
+                            <h3>ISO</h3>
+                            <p>Certified</p>
+                        </div>
+                        <div class="stat-box">
+                            <i class="fas fa-award"></i>
+                            <h3>Premium</h3>
+                            <p>Quality</p>
+                        </div>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <!-- About Section -->
+        <section class="about scroll-reveal" id="about" aria-labelledby="about-heading">
+            <div class="about-container">
+                <figure class="about-image-wrapper scroll-reveal-right">
+                    <img src="https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=600&h=400&fit=crop" 
+                         alt="MedicVista Herbal Processing Facility" 
+                         class="about-image golden-border"
+                         loading="lazy">
+                </figure>
+                
+                <article class="about-content scroll-reveal-left">
+                    <h2 id="about-heading">About MedicVista</h2>
+                    <p>MedicVista is your trusted source for premium herbal and ayurvedic products. We source the finest organic herbs from certified farms across India, ensuring purity and potency in every product. Our traditional formulations are backed by modern science to deliver effective natural wellness solutions.</p>
+                    <p>With over 50,000 satisfied customers, we're committed to bringing the ancient wisdom of Ayurveda to modern lifestyles. All our products are 100% natural, free from chemicals, and manufactured in ISO-certified facilities.</p>
+                </article>
+            </div>
+        </section>
+
+
+
+        <!-- Gallery Section -->
+        <section class="gallery" id="gallery" aria-labelledby="gallery-heading">
+            <header class="section-header">
+                <h2 id="gallery-heading">Our Premium Products</h2>
+                <p>100% natural herbal supplements for complete wellness</p>
+            </header>
+
+            <div class="gallery-grid" role="list">
+                <article class="gallery-item flip-card" role="listitem">
+                    <div class="flip-card-inner">
+                        <div class="flip-card-front">
+                            <img src="https://images.unsplash.com/photo-1505751172876-fa1923c5c528?w=400&h=300&fit=crop" 
+                                 alt="Immunity Booster" 
+                                 loading="lazy">
+                        </div>
+                        <div class="flip-card-back gallery-back">
+                            <h3>Immunity Booster</h3>
+                            <p>Powerful blend of Ashwagandha, Tulsi, and Giloy to strengthen your immune system. Protects against infections, reduces stress, and enhances overall vitality. 100% organic ingredients. ₹599 for 60 capsules.</p>
+                        </div>
+                    </div>
+                </article>
+                
+                <article class="gallery-item flip-card" role="listitem">
+                    <div class="flip-card-inner">
+                        <div class="flip-card-front">
+                            <img src="https://images.unsplash.com/photo-1587854692152-cbe660dbde88?w=400&h=300&fit=crop" 
+                                 alt="Digestive Care" 
+                                 loading="lazy">
+                        </div>
+                        <div class="flip-card-back gallery-back">
+                            <h3>Digestive Care</h3>
+                            <p>Natural digestive formula with Triphala, Ajwain, and Jeera. Relieves bloating, improves gut health, and promotes healthy digestion. Ayurvedic blend for daily wellness. ₹449 for 90 tablets.</p>
+                        </div>
+                    </div>
+                </article>
+                
+                <article class="gallery-item flip-card" role="listitem">
+                    <div class="flip-card-inner">
+                        <div class="flip-card-front">
+                            <img src="https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=400&h=300&fit=crop" 
+                                 alt="Joint Pain Relief" 
+                                 loading="lazy">
+                        </div>
+                        <div class="flip-card-back gallery-back">
+                            <h3>Joint Pain Relief</h3>
+                            <p>Herbal pain relief with Shallaki, Guggul, and Turmeric. Reduces inflammation, improves mobility, and strengthens bones naturally. Clinically tested formula. ₹699 for 60 capsules.</p>
+                        </div>
+                    </div>
+                </article>
+                
+                <article class="gallery-item flip-card" role="listitem">
+                    <div class="flip-card-inner">
+                        <div class="flip-card-front">
+                            <img src="https://images.unsplash.com/photo-1512290923902-8a9f81dc236c?w=400&h=300&fit=crop" 
+                                 alt="Stress Relief" 
+                                 loading="lazy">
+                        </div>
+                        <div class="flip-card-back gallery-back">
+                            <h3>Stress Relief</h3>
+                            <p>Calming blend of Brahmi, Shankhpushpi, and Jatamansi. Reduces anxiety, improves sleep quality, and enhances mental clarity. Perfect for modern lifestyle stress. ₹549 for 60 capsules.</p>
+                        </div>
+                    </div>
+                </article>
+                
+                <article class="gallery-item flip-card" role="listitem">
+                    <div class="flip-card-inner">
+                        <div class="flip-card-front">
+                            <img src="https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=400&h=300&fit=crop" 
+                                 alt="Hair Care Oil" 
+                                 loading="lazy">
+                        </div>
+                        <div class="flip-card-back gallery-back">
+                            <h3>Hair Care Oil</h3>
+                            <p>Nourishing hair oil with Bhringraj, Amla, and Coconut. Prevents hair fall, promotes growth, and adds natural shine. Traditional Ayurvedic formula. ₹399 for 200ml bottle.</p>
+                        </div>
+                    </div>
+                </article>
+                
+                <article class="gallery-item flip-card" role="listitem">
+                    <div class="flip-card-inner">
+                        <div class="flip-card-front">
+                            <img src="https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400&h=300&fit=crop" 
+                                 alt="Skin Glow Cream" 
+                                 loading="lazy">
+                        </div>
+                        <div class="flip-card-back gallery-back">
+                            <h3>Skin Glow Cream</h3>
+                            <p>Natural face cream with Saffron, Aloe Vera, and Sandalwood. Brightens complexion, reduces dark spots, and provides deep hydration. Chemical-free beauty. ₹649 for 50g jar.</p>
+                        </div>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <!-- Buy Now Section -->
+        <section class="buynow-section scroll-reveal" id="buynow">
+            <div class="buynow-container">
+                <div class="buynow-content">
+                    <i class="fas fa-shopping-cart buynow-icon"></i>
+                    <h2>Shop Our Products Today</h2>
+                    <p>Experience the healing power of nature with our premium herbal products. Order now and get free shipping on orders above ₹999!</p>
+                    <a href="{% url 'login' %}" class="buynow-btn">
+                        <span>Shop Now</span>
+                        <i class="fas fa-arrow-right"></i>
+                    </a>
+                    <div class="buynow-features">
+                        <div class="buynow-feature">
+                            <i class="fas fa-shield-alt"></i>
+                            <span>Secure Payment</span>
+                        </div>
+                        <div class="buynow-feature">
+                            <i class="fas fa-undo"></i>
+                            <span>30-Day Returns</span>
+                        </div>
+                        <div class="buynow-feature">
+                            <i class="fas fa-certificate"></i>
+                            <span>100% Authentic</span>
+                        </div>
+                    </div>
                 </div>
-                <h3>Smart Billing</h3>
-                <p>Generate professional invoices instantly with GST calculations and payment tracking</p>
             </div>
-            <div class="feature-card">
-                <div class="feature-icon">
-                    <i class="fas fa-chart-line"></i>
-                </div>
-                <h3>Advanced Reports</h3>
-                <p>Get detailed insights with sales, purchase, and financial reports in real-time</p>
+        </section>
+
+        <!-- Processing Section -->
+        <section class="processing" id="process" aria-labelledby="process-heading">
+            <header class="section-header">
+                <h2 id="process-heading">How It Works</h2>
+                <p>Get started in 4 simple steps</p>
+            </header>
+
+            <div class="processing-steps" role="list">
+                <!-- Step 1 -->
+                <article class="step-card" role="listitem">
+                    <div class="step-number" aria-label="Step 1">1</div>
+                    <h3>Sign Up</h3>
+                    <p>Create your account and choose a plan that fits your pharmacy needs</p>
+                </article>
+
+                <!-- Step 2 -->
+                <article class="step-card" role="listitem">
+                    <div class="step-number" aria-label="Step 2">2</div>
+                    <h3>Setup</h3>
+                    <p>Our team helps you configure the system and import your existing data</p>
+                </article>
+
+                <!-- Step 3 -->
+                <article class="step-card" role="listitem">
+                    <div class="step-number" aria-label="Step 3">3</div>
+                    <h3>Training</h3>
+                    <p>Get comprehensive training for your staff on all system features</p>
+                </article>
+
+                <!-- Step 4 -->
+                <article class="step-card" role="listitem">
+                    <div class="step-number" aria-label="Step 4">4</div>
+                    <h3>Go Live</h3>
+                    <p>Start managing your pharmacy efficiently with 24/7 support</p>
+                </article>
             </div>
-            <div class="feature-card">
-                <div class="feature-icon">
-                    <i class="fas fa-users"></i>
-                </div>
-                <h3>Customer & Supplier Management</h3>
-                <p>Maintain comprehensive records with credit tracking and ledger management</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">
+        </section>
+
+        <!-- Trust Badges Section -->
+        <section class="trust-badges scroll-reveal">
+            <div class="trust-container">
+                <div class="trust-badge">
                     <i class="fas fa-shield-alt"></i>
+                    <h4>100% Secure</h4>
+                    <p>SSL Encrypted</p>
                 </div>
-                <h3>Enterprise Security</h3>
-                <p>Your data is protected with bank-grade encryption and regular backups</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">
-                    <i class="fas fa-mobile-alt"></i>
+                <div class="trust-badge">
+                    <i class="fas fa-leaf"></i>
+                    <h4>Organic Certified</h4>
+                    <p>ISO 9001:2015</p>
                 </div>
-                <h3>Multi-Device Access</h3>
-                <p>Access from desktop, tablet, or mobile - works seamlessly on all devices</p>
-            </div>
-        </div>
-    </section>
-
-    <!-- About Section -->
-    <section class="about" id="about">
-        <div class="about-container">
-            <div>
-                <img src="https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=600&h=400&fit=crop" alt="Pharmacy" class="about-image">
-            </div>
-            <div class="about-content">
-                <h2>Built for Modern Pharmacies</h2>
-                <p>MedicVista is designed specifically for Indian pharmacies, understanding the unique challenges and requirements of the pharmaceutical retail industry.</p>
-                <p>Our platform streamlines your daily operations, reduces errors, and helps you focus on what matters most - serving your customers better.</p>
-                <div class="about-features">
-                    <div class="about-feature-item">
-                        <i class="fas fa-check-circle"></i>
-                        <span>Easy to learn and use - no technical expertise required</span>
-                    </div>
-                    <div class="about-feature-item">
-                        <i class="fas fa-check-circle"></i>
-                        <span>GST compliant with automatic tax calculations</span>
-                    </div>
-                    <div class="about-feature-item">
-                        <i class="fas fa-check-circle"></i>
-                        <span>Batch-wise inventory tracking with expiry management</span>
-                    </div>
-                    <div class="about-feature-item">
-                        <i class="fas fa-check-circle"></i>
-                        <span>Comprehensive customer and supplier ledgers</span>
-                    </div>
+                <div class="trust-badge">
+                    <i class="fas fa-award"></i>
+                    <h4>Award Winning</h4>
+                    <p>Best Herbal Brand 2024</p>
+                </div>
+                <div class="trust-badge">
+                    <i class="fas fa-truck"></i>
+                    <h4>Fast Delivery</h4>
+                    <p>3-5 Business Days</p>
+                </div>
+                <div class="trust-badge">
+                    <i class="fas fa-undo"></i>
+                    <h4>Easy Returns</h4>
+                    <p>30-Day Guarantee</p>
                 </div>
             </div>
-        </div>
-    </section>
+        </section>
 
-    <!-- CTA Section -->
-    <section class="cta">
-        <h2>Ready to Transform Your Pharmacy?</h2>
-        <p>Join hundreds of pharmacies already using MedicVista</p>
-        <a href="{% url 'login' %}" class="btn-primary">Start Now - It's Free</a>
-    </section>
+        <!-- Testimonials Section -->
+        <section class="testimonials scroll-reveal" id="testimonials">
+            <header class="section-header">
+                <h2>What Our Customers Say</h2>
+                <p>Trusted by 50,000+ happy customers across India</p>
+            </header>
 
-    <!-- Footer -->
-    <footer class="footer" id="contact">
+            <div class="testimonials-container">
+                <article class="testimonial-card stagger-item">
+                    <div class="stars">
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                    </div>
+                    <p class="testimonial-text">"The Immunity Booster has been a game-changer for my family. We haven't fallen sick in months! 100% natural and effective. Highly recommend MedicVista products!"</p>
+                    <div class="testimonial-author">
+                        <div class="author-avatar">RS</div>
+                        <div>
+                            <h4>rudra zope</h4>
+                            <p>Mumbai, Maharashtra</p>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="testimonial-card stagger-item">
+                    <div class="stars">
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                    </div>
+                    <p class="testimonial-text">"Amazing hair oil! My hair fall reduced significantly within 3 weeks. The quality is excellent and delivery was super fast. Will definitely order again!"</p>
+                    <div class="testimonial-author">
+                        <div class="author-avatar">PK</div>
+                        <div>
+                            <h4>pratik zope</h4>
+                            <p>Pune, Maharashtra</p>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="testimonial-card stagger-item">
+                    <div class="stars">
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star-half-alt"></i>
+                    </div>
+                    <p class="testimonial-text">"The Joint Pain Relief capsules worked wonders for my knee pain. Natural ingredients with no side effects. Great customer service too!"</p>
+                    <div class="testimonial-author">
+                        <div class="author-avatar">AM</div>
+                        <div>
+                            <h4>vaibhav patil</h4>
+                            <p>Bangalore, Karnataka</p>
+                        </div>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <!-- FAQ Section -->
+        <section class="faq scroll-reveal" id="faq">
+            <header class="section-header">
+                <h2>Frequently Asked Questions</h2>
+                <p>Everything you need to know</p>
+            </header>
+
+            <div class="faq-container">
+                <article class="faq-item stagger-item">
+                    <button class="faq-question">
+                        <span>Are your products 100% natural?</span>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Yes, all our products are made from 100% natural herbs sourced from certified organic farms. We don't use any artificial additives, preservatives, or chemicals.</p>
+                    </div>
+                </article>
+
+                <article class="faq-item stagger-item">
+                    <button class="faq-question">
+                        <span>How long does it take to see results?</span>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Results vary by individual and product. Typically, customers notice improvements within 2-4 weeks of regular use. For best results, we recommend consistent usage for at least 3 months.</p>
+                    </div>
+                </article>
+
+                <article class="faq-item stagger-item">
+                    <button class="faq-question">
+                        <span>Are there any side effects?</span>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Our products are made from natural herbs and are generally safe. However, we recommend consulting with a healthcare professional before starting any new supplement, especially if you're pregnant, nursing, or taking medications.</p>
+                    </div>
+                </article>
+
+                <article class="faq-item stagger-item">
+                    <button class="faq-question">
+                        <span>Do you offer international shipping?</span>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Currently, we ship across India. International shipping is available for select countries. Please contact our customer support for more information about shipping to your location.</p>
+                    </div>
+                </article>
+
+                <article class="faq-item stagger-item">
+                    <button class="faq-question">
+                        <span>What is your return policy?</span>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <div class="faq-answer">
+                        <p>We offer a 30-day money-back guarantee. If you're not satisfied with our products, you can return them within 30 days of purchase for a full refund. Product must be unopened and in original packaging.</p>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <!-- CTA Section -->
+        <section class="cta-section scroll-reveal">
+            <div class="cta-container">
+                <div class="cta-content">
+                    <h2>Get 20% Off Your First Order!</h2>
+                    <p>Subscribe to our newsletter and receive exclusive offers, health tips, and new product updates.</p>
+                </div>
+                <form class="newsletter-form">
+                    <input type="email" placeholder="Enter your email for 20% discount" required>
+                    <button type="submit" class="cta-btn">
+                        <span>Get Discount</span>
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </form>
+                <div class="cta-features">
+                    <div class="cta-feature">
+                        <i class="fas fa-gift"></i>
+                        <span>20% Off First Order</span>
+                    </div>
+                    <div class="cta-feature">
+                        <i class="fas fa-shield-alt"></i>
+                        <span>Secure Shopping</span>
+                    </div>
+                    <div class="cta-feature">
+                        <i class="fas fa-leaf"></i>
+                        <span>100% Natural</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ========== FOOTER ========== -->
+    <footer class="footer" id="contact" role="contentinfo">
         <div class="footer-container">
-            <div class="footer-section">
-                <h3>MedicVista</h3>
-                <p>Complete pharmacy management solution designed for modern pharmacies in India.</p>
-                <div class="social-links">
-                    <a href="#"><i class="fab fa-facebook-f"></i></a>
-                    <a href="#"><i class="fab fa-twitter"></i></a>
-                    <a href="#"><i class="fab fa-linkedin-in"></i></a>
-                    <a href="#"><i class="fab fa-instagram"></i></a>
+            <!-- Company Info -->
+            <section class="footer-section" aria-labelledby="footer-company">
+                <div class="footer-logo">
+                    <img src="{% static 'weblogo.jpeg' %}" alt="MedicVista Logo">
                 </div>
-            </div>
-            <div class="footer-section">
-                <h3>Quick Links</h3>
-                <a href="#home">Home</a>
-                <a href="#features">Features</a>
-                <a href="#about">About Us</a>
-                <a href="{% url 'login' %}">Login</a>
-            </div>
-            <div class="footer-section">
-                <h3>Features</h3>
-                <a href="#features">Inventory Management</a>
-                <a href="#features">Billing & Invoicing</a>
-                <a href="#features">Reports & Analytics</a>
-                <a href="#features">Customer Management</a>
-            </div>
-            <div class="footer-section">
-                <h3>Contact Us</h3>
-                <p><i class="fas fa-envelope"></i> support@medicvista.com</p>
-                <p><i class="fas fa-phone"></i> +91 9595663391</p>
-                <p><i class="fas fa-map-marker-alt"></i> Bhusawal, Maharashtra, India</p>
-            </div>
+                <p id="footer-company">Premium herbal and ayurvedic products for natural wellness. Trusted by 50,000+ customers across India.</p>
+                <nav class="social-links" aria-label="Social Media Links">
+                    <a href="#" aria-label="Facebook" target="_blank" rel="noopener">
+                        <i class="fab fa-facebook-f" aria-hidden="true"></i>
+                    </a>
+                    <a href="#" aria-label="Twitter" target="_blank" rel="noopener">
+                        <i class="fab fa-twitter" aria-hidden="true"></i>
+                    </a>
+                    <a href="#" aria-label="LinkedIn" target="_blank" rel="noopener">
+                        <i class="fab fa-linkedin-in" aria-hidden="true"></i>
+                    </a>
+                    <a href="#" aria-label="Instagram" target="_blank" rel="noopener">
+                        <i class="fab fa-instagram" aria-hidden="true"></i>
+                    </a>
+                </nav>
+            </section>
+
+            <!-- Quick Links -->
+            <section class="footer-section" aria-labelledby="footer-links">
+                <h3 id="footer-links">Quick Links</h3>
+                <nav aria-label="Footer Navigation">
+                    <a href="#home">Home</a>
+                    <a href="#about">About Us</a>
+                    <a href="#products">Products</a>
+                    <a href="#contact">Contact</a>
+                </nav>
+            </section>
+
+            <!-- Products Links -->
+            <section class="footer-section" aria-labelledby="footer-products">
+                <h3 id="footer-products">Products</h3>
+                <nav aria-label="Product Links">
+                    <a href="#gallery">Immunity Booster</a>
+                    <a href="#gallery">Digestive Care</a>
+                    <a href="#gallery">Joint Pain Relief</a>
+                </nav>
+            </section>
+
+            <!-- Contact Info -->
+            <section class="footer-section" aria-labelledby="footer-contact">
+                <h3 id="footer-contact">Contact Us</h3>
+                <address>
+                    <p><i class="fas fa-envelope" aria-hidden="true"></i> medicvistapharma@gmail.com</p>
+                    <p><i class="fas fa-phone" aria-hidden="true"></i> +91 9423192253</p>
+                    <p><i class="fas fa-map-marker-alt" aria-hidden="true"></i> Bhusawal, Maharashtra, India</p>
+                </address>
+            </section>
         </div>
+
+        <!-- Copyright -->
         <div class="footer-bottom">
-            <p>&copy; {% now 'Y' %} MedicVista. All Rights Reserved. | Privacy Policy | Terms of Service</p>
+            <p>&copy; 2025 MedicVista. All Rights Reserved.</p>
         </div>
     </footer>
 
+    <!-- ========== JAVASCRIPT ========== -->
     <script>
-        // Mobile menu toggle
-        const mobileMenuBtn = document.querySelector('.mobile-menu-btn');
-        const navLinks = document.querySelector('.nav-links');
-        
-        if (mobileMenuBtn) {
-            mobileMenuBtn.addEventListener('click', function() {
-                navLinks.classList.toggle('active');
-                const icon = this.querySelector('i');
-                icon.classList.toggle('fa-bars');
-                icon.classList.toggle('fa-times');
-            });
+        // ========== SCROLL PROGRESS BAR ==========
+        window.addEventListener('scroll', () => {
+            const scrollProgress = document.querySelector('.scroll-progress-bar');
+            const scrollTop = window.pageYOffset;
+            const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+            const scrollPercent = (scrollTop / docHeight) * 100;
+            scrollProgress.style.width = scrollPercent + '%';
+        });
+
+        // ========== STICKY CTA BUTTON ==========
+        window.addEventListener('scroll', () => {
+            const stickyCta = document.querySelector('.sticky-cta-btn');
+            if (window.pageYOffset > 500) {
+                stickyCta.classList.add('visible');
+            } else {
+                stickyCta.classList.remove('visible');
+            }
+        });
+
+        // ========== ANIMATED COUNTER ==========
+        function animateCounter(element) {
+            const target = parseInt(element.getAttribute('data-target'));
+            const duration = 2000;
+            const increment = target / (duration / 16);
+            let current = 0;
+
+            const updateCounter = () => {
+                current += increment;
+                if (current < target) {
+                    element.textContent = Math.floor(current).toLocaleString();
+                    requestAnimationFrame(updateCounter);
+                } else {
+                    element.textContent = target.toLocaleString() + '+';
+                }
+            };
+
+            updateCounter();
         }
 
-        // Close mobile menu when clicking on a link
-        document.querySelectorAll('.nav-links a').forEach(link => {
-            link.addEventListener('click', function() {
-                navLinks.classList.remove('active');
-                const icon = mobileMenuBtn.querySelector('i');
-                icon.classList.remove('fa-times');
-                icon.classList.add('fa-bars');
-            });
-        });
-
-        // Smooth scrolling for anchor links
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
-                e.preventDefault();
-                const target = document.querySelector(this.getAttribute('href'));
-                if (target) {
-                    target.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start'
-                    });
+        // Observe counters
+        const counterObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting && !entry.target.classList.contains('counted')) {
+                    entry.target.classList.add('counted');
+                    animateCounter(entry.target);
                 }
             });
+        }, { threshold: 0.5 });
+
+        document.querySelectorAll('.counter').forEach(counter => {
+            counterObserver.observe(counter);
         });
 
-        // Scroll to section if hash is present in URL (from login page navigation)
-        window.addEventListener('load', function() {
-            if (window.location.hash) {
-                const target = document.querySelector(window.location.hash);
-                if (target) {
-                    setTimeout(() => {
+        // ========== RIPPLE EFFECT ==========
+        document.querySelectorAll('.buynow-btn, .cta-btn, .login-btn, .whatsapp-btn').forEach(btn => {
+            btn.classList.add('ripple');
+        });
+
+        // Mobile Menu Toggle
+        document.addEventListener('DOMContentLoaded', function() {
+            const mobileMenuBtn = document.querySelector('.mobile-menu-btn');
+            const navLinks = document.querySelector('.nav-links');
+            
+            if (mobileMenuBtn) {
+                mobileMenuBtn.addEventListener('click', () => {
+                    const isExpanded = navLinks.classList.toggle('active');
+                    mobileMenuBtn.setAttribute('aria-expanded', isExpanded);
+                });
+            }
+
+            // Navigation Active State
+            document.querySelectorAll('.navlink').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    document.querySelectorAll('.navlink').forEach(l => l.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    if (navLinks && navLinks.classList.contains('active')) {
+                        navLinks.classList.remove('active');
+                        mobileMenuBtn.setAttribute('aria-expanded', 'false');
+                    }
+                });
+            });
+
+            // Smooth Scroll for Anchor Links
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const target = document.querySelector(this.getAttribute('href'));
+                    if (target) {
                         target.scrollIntoView({
                             behavior: 'smooth',
                             block: 'start'
                         });
-                    }, 100);
-                }
-            }
+                    }
+                });
+            });
+
+            // Scroll Animations
+            const observerOptions = {
+                threshold: 0.1,
+                rootMargin: '0px 0px -50px 0px'
+            };
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('revealed');
+                    }
+                });
+            }, observerOptions);
+
+            // Add scroll reveal animations
+            document.querySelectorAll('.scroll-reveal, .scroll-reveal-left, .scroll-reveal-right, .stagger-item, .step-card, .gallery-item').forEach(el => {
+                observer.observe(el);
+            });
+
+            // Create golden particles
+            createGoldenParticles();
+            
+            // FAQ Accordion
+            document.querySelectorAll('.faq-question').forEach(button => {
+                button.addEventListener('click', () => {
+                    const faqItem = button.parentElement;
+                    const isActive = faqItem.classList.contains('active');
+                    
+                    // Close all FAQ items
+                    document.querySelectorAll('.faq-item').forEach(item => {
+                        item.classList.remove('active');
+                    });
+                    
+                    // Open clicked item if it wasn't active
+                    if (!isActive) {
+                        faqItem.classList.add('active');
+                    }
+                });
+            });
+            
+            // Newsletter Form
+            document.querySelector('.newsletter-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const email = e.target.querySelector('input').value;
+                alert('Thank you for subscribing! Check your email for 20% discount code: ' + email);
+                e.target.reset();
+            });
         });
 
-        // Navbar background on scroll with class toggle
-        window.addEventListener('scroll', function() {
-            const navbar = document.querySelector('.navbar');
-            if (window.scrollY > 50) {
-                navbar.classList.add('scrolled');
-            } else {
-                navbar.classList.remove('scrolled');
+        // Create golden particles function
+        function createGoldenParticles() {
+            const particlesContainer = document.getElementById('goldenParticles');
+            
+            // Golden particles
+            for (let i = 0; i < 15; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'golden-particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 12 + 's';
+                particle.style.animationDuration = (8 + Math.random() * 8) + 's';
+                particlesContainer.appendChild(particle);
             }
+            
+            // Pharmaceutical capsules
+            for (let i = 0; i < 8; i++) {
+                const capsule = document.createElement('div');
+                capsule.className = 'pharma-capsule';
+                capsule.style.left = Math.random() * 100 + '%';
+                capsule.style.animationDelay = Math.random() * 12 + 's';
+                particlesContainer.appendChild(capsule);
+            }
+            
+            // Pharmaceutical tablets
+            for (let i = 0; i < 10; i++) {
+                const tablet = document.createElement('div');
+                tablet.className = 'pharma-tablet';
+                tablet.style.left = Math.random() * 100 + '%';
+                tablet.style.animationDelay = Math.random() * 10 + 's';
+                particlesContainer.appendChild(tablet);
+            }
+            
+            // Medical syringes
+            for (let i = 0; i < 5; i++) {
+                const syringe = document.createElement('div');
+                syringe.className = 'pharma-syringe';
+                syringe.style.left = Math.random() * 100 + '%';
+                syringe.style.animationDelay = Math.random() * 14 + 's';
+                particlesContainer.appendChild(syringe);
+            }
+            
+            // Medical crosses
+            for (let i = 0; i < 6; i++) {
+                const cross = document.createElement('div');
+                cross.className = 'medical-cross';
+                cross.style.left = Math.random() * 100 + '%';
+                cross.style.animationDelay = Math.random() * 16 + 's';
+                particlesContainer.appendChild(cross);
+            }
+            
+            // DNA helixes
+            for (let i = 0; i < 4; i++) {
+                const dna = document.createElement('div');
+                dna.className = 'dna-helix';
+                dna.innerHTML = '<div class="dna-strand"></div><div class="dna-strand"></div>';
+                dna.style.left = Math.random() * 100 + '%';
+                dna.style.animationDelay = Math.random() * 18 + 's';
+                particlesContainer.appendChild(dna);
+            }
+        }
+        
+        // Enhanced scroll observer for better visibility
+        function initEnhancedScrollAnimations() {
+            const enhancedObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.style.opacity = '1';
+                        entry.target.style.transform = 'translateY(0) translateX(0)';
+                        entry.target.classList.add('revealed');
+                    }
+                });
+            }, {
+                threshold: 0.05,
+                rootMargin: '0px 0px -20px 0px'
+            });
+            
+            // Apply enhanced observer to all sections and elements
+            document.querySelectorAll('section, .step-card, .gallery-item, .product-box').forEach(element => {
+                enhancedObserver.observe(element);
+            });
+        }
+        
+        // Scroll to Top Button
+        const scrollTopBtn = document.createElement('button');
+        scrollTopBtn.className = 'scroll-top';
+        scrollTopBtn.innerHTML = '<i class="fas fa-arrow-up"></i>';
+        scrollTopBtn.setAttribute('aria-label', 'Scroll to top');
+        document.body.appendChild(scrollTopBtn);
+        
+        window.addEventListener('scroll', () => {
+            if (window.pageYOffset > 300) {
+                scrollTopBtn.classList.add('visible');
+            } else {
+                scrollTopBtn.classList.remove('visible');
+            }
+        });
+        
+        scrollTopBtn.addEventListener('click', () => {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        });
+        
+        // Initialize all animations
+        document.addEventListener('DOMContentLoaded', function() {
+            createGoldenParticles();
+            initEnhancedScrollAnimations();
+            
+            // Restart typewriter animation
+            setTimeout(() => {
+                const typewriterEl = document.querySelector('.typewriter');
+                if (typewriterEl) {
+                    typewriterEl.style.animation = 'none';
+                    setTimeout(() => {
+                        typewriterEl.style.animation = 'typing 3.5s steps(40, end), blink-caret 0.75s step-end infinite';
+                    }, 100);
+                }
+            }, 500);
         });
     </script>
 </body>

@@ -9,6 +9,14 @@ from core.year_filter_utils import apply_year_filter
 def landing_page(request):
     """Display the intro/landing page before login"""
     return render(request, 'landing.html', {'title': 'Welcome to MedicVista'})
+
+def landing2_page(request):
+    """Display landing2 page"""
+    return render(request, 'landing2.html', {'title': 'MedicVista - Natural Herbal Solutions'})
+
+def landing3_page(request):
+    """Display landing3 page"""
+    return render(request, 'landing3.html', {'title': 'MedicVista - Future of Wellness'})
 from django.db.models.functions import TruncMonth, TruncYear, Coalesce
 from django.http import JsonResponse, HttpResponse
 from django.utils import timezone

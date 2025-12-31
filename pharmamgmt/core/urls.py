@@ -39,6 +39,8 @@ from .year_filter_views import set_year_filter
 urlpatterns = [
     # Landing Page (Root URL)
     path('', views.landing_page, name='landing_page'),
+    # path('landing2', views.landing2_page, name='landing2_page'),
+    # path('landing3', views.landing3_page, name='landing3_page'),
     
     # Year Filter
     path('set-year-filter/', set_year_filter, name='set_year_filter'),
