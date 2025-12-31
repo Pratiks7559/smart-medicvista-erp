@@ -17,9 +17,12 @@ def inventory_list_cached(request):
     from .inventory_cache import update_all_batches_for_product
     
     search_query = request.GET.get('search', '').strip()
+    offset = int(request.GET.get('offset', 0))
     
-    # Get ALL products (not just cached ones)
-    products = ProductMaster.objects.all()
+    # Get ALL products but optimize with prefetch
+    products = ProductMaster.objects.prefetch_related(
+        'inventory_cache', 'batch_caches'
+    ).all()
     
     if search_query:
         products = products.filter(
@@ -30,26 +33,24 @@ def inventory_list_cached(request):
     
     products = products.order_by('product_name')
     
-    # Pagination
-    paginator = Paginator(products, 50)
-    page_number = request.GET.get('page', 1)
-    page_obj = paginator.get_page(page_number)
+    # Manual pagination with offset
+    per_page = 25  # Smaller pages for faster loading
+    start = offset
+    end = offset + per_page
+    
+    products_slice = products[start:end]
+    total_count = products.count()
+    has_more = end < total_count
+    next_offset = end if has_more else None
     
     # Prepare data with on-the-fly cache
     inventory_data = []
-    for product in page_obj:
-        # Get or create cache
-        cache = ProductInventoryCache.objects.filter(product=product).first()
-        if not cache:
-            # Create cache on-the-fly for products without cache
-            update_all_batches_for_product(product.productid)
-            cache = ProductInventoryCache.objects.filter(product=product).first()
+    for product in products_slice:
+        # Use prefetched cache (no additional queries)
+        cache = getattr(product, 'inventory_cache', None)
         
-        # Get batches
-        batches = BatchInventoryCache.objects.filter(
-            product=product,
-            current_stock__gt=0
-        ).order_by('expiry_date')
+        # Use prefetched batches (no additional queries)
+        batches = [b for b in product.batch_caches.all() if b.current_stock > 0]
         
         batches_info = [{
             'batch_no': b.batch_no,
@@ -84,9 +85,9 @@ def inventory_list_cached(request):
         return JsonResponse({
             'success': True,
             'html': html,
-            'has_more': page_obj.has_next(),
-            'next_offset': page_obj.next_page_number() if page_obj.has_next() else None,
-            'total_count': products.count(),
+            'has_more': has_more,
+            'next_offset': next_offset,
+            'total_count': total_count,
             'batch_stats': {
                 'total_value': page_total_value,
                 'low_stock': page_low_stock,
@@ -96,14 +97,13 @@ def inventory_list_cached(request):
     
     context = {
         'inventory_data': inventory_data,
-        'page_obj': page_obj,
         'search_query': search_query,
-        'total_products': products.count(),
+        'total_products': total_count,
         'page_total_value': page_total_value,
         'page_low_stock': page_low_stock,
         'page_out_of_stock': page_out_of_stock,
-        'has_more': page_obj.has_next(),
-        'next_offset': page_obj.next_page_number() if page_obj.has_next() else None,
+        'has_more': has_more,
+        'next_offset': next_offset,
     }
     
     return render(request, 'inventory/inventory_list.html', context)

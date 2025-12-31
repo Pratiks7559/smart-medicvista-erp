@@ -1,32 +1,98 @@
-# Database
-*.sqlite3
-db.sqlite3
-
-# Node modules
-node_modules/
-
 # Python
-__pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
-venv/
-ENV/
+__pycache__/
+*.pyc
 
 # Django
 *.log
-local_settings.py
-media/
-staticfiles/
+db.sqlite3
+db.sqlite3-journal
+/media
+/staticfiles
+*.pot
+
+# Environment
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# OS
+*~
 .DS_Store
-Thumbs.db
+
+# Backups
+backups/
+*.sqlite3
+*.sql
+backup_*.sqlite3
+backup_*.sql
+
+# Test files
+test_*.txt
+*_test_*.txt
+test_report_*.txt
+production_test_report_*.json
+production_assessment_*.json
+
+# Batch files (optional - remove if needed)
+*.bat
+
+# Local state
+.local/
+
+# Replit specific
+.replit
+replit.md
+pyproject.toml
+uv.lock
+generated-icon.png
+
+# Test and debug files
+locustfile.py
+complete_locustfile.py
+advanced_load_test.py
+analyze_cache_issue.py
+cache_rebuild_benchmark.py
+check_cache.py
+clean_test_data.py
+cleanup_tables.py
+create_test_data.py
+debug_inventory.py
+delete_*.py
+datadump.json
+invoice_debug.log
+
+# Attached assets
+attached_assets/
+
+# Large image files (optional)
+*.JPG
+*.jpg
+*.png
+*.jpeg
+!weblogo.jpeg
+!download.png
+
+# SQL files
+*.sql
+create_postgres_db.sql
+
+# Requirements backup
+requirements_postgres.txt
+requirements_postgresql.txt
+
+# Prompt and documentation
+prompt.md
+updated_*.txt
+updated_*.py
