@@ -11801,3 +11801,116 @@ def export_receipts_excel(request):
         ])
     
     return response
+
+
+# GST Purchase Invoice
+@login_required
+def print_gst_purchase_invoice(request, invoice_id):
+    """Print GST-compliant purchase invoice"""
+    from collections import defaultdict
+    from decimal import Decimal
+    
+    invoice = get_object_or_404(InvoiceMaster, invoiceid=invoice_id)
+    purchases = PurchaseMaster.objects.filter(product_invoiceid=invoice_id).order_by('productid')
+    pharmacy = Pharmacy_Details.objects.first()
+    
+    # Calculate GST summary
+    gst_summary = defaultdict(lambda: {'taxable_amount': Decimal('0'), 'cgst_amount': Decimal('0'), 'sgst_amount': Decimal('0'), 'total_amount': Decimal('0')})
+    items_with_calculations = []
+    sr_no = 1
+    
+    for purchase in purchases:
+        base_amount = Decimal(str(purchase.product_purchase_rate)) * Decimal(str(purchase.product_quantity))
+        
+        if purchase.purchase_calculation_mode == 'flat':
+            taxable_amount = base_amount - Decimal(str(purchase.product_discount_got))
+        else:
+            taxable_amount = base_amount * (Decimal('1') - (Decimal(str(purchase.product_discount_got)) / Decimal('100')))
+        
+        cgst_rate = Decimal(str(purchase.CGST))
+        sgst_rate = Decimal(str(purchase.SGST))
+        cgst_amount = taxable_amount * (cgst_rate / Decimal('100'))
+        sgst_amount = taxable_amount * (sgst_rate / Decimal('100'))
+        total_amount = taxable_amount + cgst_amount + sgst_amount
+        
+        items_with_calculations.append({
+            'sr_no': sr_no,
+            'purchase': purchase,
+            'taxable_amount': taxable_amount,
+            'cgst_amount': cgst_amount,
+            'sgst_amount': sgst_amount,
+            'total_amount': total_amount,
+            'gst_rate': cgst_rate + sgst_rate
+        })
+        
+        total_gst_rate = float(cgst_rate + sgst_rate)
+        gst_key = str(int(round(total_gst_rate)))
+        gst_summary[gst_key]['taxable_amount'] += taxable_amount
+        gst_summary[gst_key]['cgst_amount'] += cgst_amount
+        gst_summary[gst_key]['sgst_amount'] += sgst_amount
+        gst_summary[gst_key]['total_amount'] += total_amount
+        sr_no += 1
+    
+    total_taxable = sum(item['taxable_amount'] for item in items_with_calculations)
+    total_cgst = sum(item['cgst_amount'] for item in items_with_calculations)
+    total_sgst = sum(item['sgst_amount'] for item in items_with_calculations)
+    grand_total = total_taxable + total_cgst + total_sgst + Decimal(str(invoice.transport_charges or 0))
+    
+    # Convert to words
+    def number_to_words(n):
+        if n == 0: return "Zero Rupees Only"
+        ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"]
+        tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"]
+        teens = ["Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"]
+        
+        def convert_below_thousand(num):
+            if num == 0: return ""
+            elif num < 10: return ones[num]
+            elif num < 20: return teens[num - 10]
+            elif num < 100: return tens[num // 10] + (" " + ones[num % 10] if num % 10 != 0 else "")
+            else: return ones[num // 100] + " Hundred" + (" " + convert_below_thousand(num % 100) if num % 100 != 0 else "")
+        
+        crore = int(n // 10000000)
+        n %= 10000000
+        lakh = int(n // 100000)
+        n %= 100000
+        thousand = int(n // 1000)
+        n %= 1000
+        hundred = int(n)
+        
+        result = []
+        if crore > 0: result.append(convert_below_thousand(crore) + " Crore")
+        if lakh > 0: result.append(convert_below_thousand(lakh) + " Lakh")
+        if thousand > 0: result.append(convert_below_thousand(thousand) + " Thousand")
+        if hundred > 0: result.append(convert_below_thousand(hundred))
+        
+        return " ".join(result) + " Rupees Only"
+    
+    amount_in_words = number_to_words(float(grand_total))
+    
+    gst_5 = gst_summary.get('5', {'taxable_amount': Decimal('0'), 'cgst_amount': Decimal('0'), 'sgst_amount': Decimal('0'), 'total_amount': Decimal('0')})
+    gst_12 = gst_summary.get('12', {'taxable_amount': Decimal('0'), 'cgst_amount': Decimal('0'), 'sgst_amount': Decimal('0'), 'total_amount': Decimal('0')})
+    gst_18 = gst_summary.get('18', {'taxable_amount': Decimal('0'), 'cgst_amount': Decimal('0'), 'sgst_amount': Decimal('0'), 'total_amount': Decimal('0')})
+    
+    context = {
+        'invoice': invoice,
+        'items': items_with_calculations,
+        'gst_summary': dict(gst_summary),
+        'gst_5': gst_5,
+        'gst_12': gst_12,
+        'gst_18': gst_18,
+        'total_taxable': total_taxable,
+        'total_cgst': total_cgst,
+        'total_sgst': total_sgst,
+        'grand_total': grand_total,
+        'amount_in_words': amount_in_words,
+        'pharmacy': pharmacy,
+    }
+    
+    return render(request, 'purchases/gst_purchase_invoice.html', context)
+
+
+
+
+
+

@@ -519,7 +519,7 @@ th, td { display: table-cell !important; }
             <button type="button" class="sr-detail-btn sr-detail-btn-primary" onclick="openEditSalesReturnModal()">
                 <i class="sr-detail-edit-icon"></i> Edit Return
             </button>
-            <a href="{% url 'print_sales_return_receipt' return_id=return_invoice.return_sales_invoice_no %}" target="_blank" class="sr-detail-btn sr-detail-btn-success">
+            <a href="{% url 'print_gst_sales_return_invoice' return_id=return_invoice.return_sales_invoice_no %}" target="_blank" class="sr-detail-btn sr-detail-btn-success">
                 <i class="sr-detail-print-icon"></i> Print Receipt
             </a>
             <a href="{% url 'add_sales_return_payment' return_id=return_invoice.return_sales_invoice_no %}" class="sr-detail-btn sr-detail-btn-info">
@@ -1660,7 +1660,7 @@ window.addEventListener('keydown', function(e) {
     if (e.ctrlKey && (e.key === 'p' || e.key === 'P')) {
         e.preventDefault();
         e.stopPropagation();
-        window.open('{% url "print_sales_return_receipt" return_id=return_invoice.return_sales_invoice_no %}', '_blank');
+        window.open('{% url "print_gst_sales_return_invoice" return_id=return_invoice.return_sales_invoice_no %}', '_blank');
         return false;
     }
     

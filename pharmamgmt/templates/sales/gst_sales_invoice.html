@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>GST Sales Invoice</title>
+    <style>
+        @page {
+            size: A5 landscape;
+            margin: 4mm;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 9.5px;
+            line-height: 1;
+            color: #000;
+        }
+        .invoice-container {
+            width: 100%;
+            border: 2px solid #000;
+            padding: 3px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 2px solid #000;
+            padding-bottom: 3px;
+            margin-bottom: 3px;
+        }
+        .header-left {
+            text-align: left;
+            width: 48%;
+            border-right: 1px solid #000;
+            padding-right: 3px;
+        }
+        .header-left h1 {
+            font-size: 16px;
+            margin-bottom: 0.5px;
+        }
+        .header-left .gst-title {
+            font-size: 14px;
+            font-weight: bold;
+            margin: 1px 0;
+        }
+        .header-left p {
+            font-size: 14px;
+            margin: 1px 0;
+        }
+        .header-right {
+            width: 48%;
+            padding-left: 3px;
+        }
+        .header-right h3 {
+            font-size: 12px;
+            border-bottom: 1px solid #000;
+            padding-bottom: 0.5px;
+            margin-bottom: 1px;
+        }
+        .header-right .info-line {
+            font-size: 12px;
+            margin: 0.7px 0;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2px;
+            border: 1px solid #000;
+            padding: 2px;
+        }
+        .invoice-details-full {
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            border: 1px solid #000;
+            padding: 2px;
+            margin-bottom: 4px;
+        }
+        .invoice-details-full .detail-item {
+            font-size: 12px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2px 0;
+        }
+        th, td {
+            border: 1px solid #000;
+            padding: 1px;
+            text-align: center;
+            font-size: 11px;
+        }
+        th {
+            background-color: #e0e0e0;
+            font-weight: bold;
+            font-size: 11px;
+        }
+        .text-left { text-align: left; }
+        .text-right { text-align: right; }
+        .gst-summary {
+            width: 58%;
+            margin-top: 4px;
+            margin-bottom: 2px;
+        }
+        .totals-section {
+            display: flex;
+            justify-content: space-between;
+            margin: 2px 0;
+        }
+        .totals-table {
+            width: 38%;
+            border: 1px solid #000;
+        }
+        .totals-table td {
+            padding: 1px 3px;
+            font-size: 10px;
+        }
+        .grand-total {
+            font-weight: bold;
+            font-size: 11px;
+        }
+        .amount-words {
+            border: 1px solid #000;
+            padding: 2px;
+            margin: 2px 0;
+            font-size: 8px;
+            font-weight: bold;
+        }
+        .footer-section {
+            margin-top: 2px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .bank-details-box {
+            width: 58%;
+            border: 1px solid #000;
+            padding: 4px;
+            text-align: left;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .bank-details-text {
+            flex: 1;
+        }
+        .bank-details-box h4 {
+            font-size: 11px;
+            font-weight: bold;
+            margin-bottom: 3px;
+            border-bottom: 1px solid #000;
+            padding-bottom: 2px;
+        }
+        .bank-details-box p {
+            font-size: 10px;
+            margin: 2px 0;
+            line-height: 1.3;
+        }
+        .bank-qr-code {
+            width: 60px;
+            height: 60px;
+            margin-left: 5px;
+        }
+        .bank-qr-code img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .signature-box {
+            width: 38%;
+            border: 1px solid #000;
+            padding: 2px;
+            text-align: right;
+        }
+        .signature-box p {
+            font-size: 7.5px;
+            margin-top: 12px;
+        }
+        .terms {
+            border: 1px solid #000;
+            padding: 3px;
+            margin-top: 2px;
+            font-size: 9.5px;
+            line-height: 1.4;
+        }
+        @media print {
+            body { -webkit-print-color-adjust: exact; }
+            .invoice-container { border: 2px solid #000; }
+            th { background-color: #e0e0e0 !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="invoice-container">
+        <!-- Header with Pharmacy Info (Left) and Bill To Customer (Right) -->
+        <div class="header">
+            <div class="header-left">
+                {% if pharmacy %}
+                <h1>{{ pharmacy.pharmaname|upper }}</h1>
+                <p>{{ pharmacy.pharmaaddress }}</p>
+                <p>GST No: {{ pharmacy.pharmagstno }} | DL No: {{ pharmacy.pharmadlno }}</p>
+                <p>Phone: {{ pharmacy.proprietorcontact }} | Email: {{ pharmacy.proprietoremail }}</p>
+                {% endif %}
+                <div class="gst-title">SALES INVOICE</div>
+            </div>
+            <div class="header-right">
+                <h3>BILL TO (CUSTOMER)</h3>
+                <div class="info-line"><strong>Name:</strong> {{ invoice.customerid.customer_name|default:"Walk-in Customer" }}</div>
+                <div class="info-line"><strong>Address:</strong> {{ invoice.customerid.customer_address|default:"N/A" }}</div>
+                <div class="info-line"><strong>GST No:</strong> {{ invoice.customerid.customer_gstno|default:"N/A" }}</div>
+                <div class="info-line"><strong>Contact:</strong> {{ invoice.customerid.customer_mobile|default:"N/A" }}</div>
+            </div>
+        </div>
+
+        <!-- Invoice Details (Full Row) -->
+        <div class="invoice-details-full">
+            <div class="detail-item"><strong>Invoice No:</strong> {{ invoice.sales_invoice_no }}</div>
+            <div class="detail-item"><strong>Invoice Date:</strong> {{ invoice.sales_invoice_date|date:"d/m/Y" }}</div>
+            <div class="detail-item"><strong>Due Date:</strong> {{ invoice.sales_invoice_date|date:"d/m/Y" }}</div>
+            <div class="detail-item"><strong>Place of Supply:</strong> Maharashtra</div>
+            <div class="detail-item"><strong>Payment Mode:</strong>Credit</div>
+        </div>
+
+        <!-- Product Table -->
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 3%;">Sr</th>
+                    <th style="width: 6%;">HSN</th>
+                    <th style="width: 5%;">Pack</th>
+                    <th style="width: 20%;">Product Name</th>
+                    <th style="width: 8%;">Batch</th>
+                    <th style="width: 6%;">Exp</th>
+                    <th style="width: 5%;">Qty</th>
+                    <th style="width: 6%;">MRP</th>
+                    <th style="width: 6%;">Rate</th>
+                    <th style="width: 5%;">Disc</th>
+                    <th style="width: 6%;">SGST</th>
+                    <th style="width: 6%;">CGST</th>
+                    <th style="width: 8%;">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td>{{ item.sr_no }}</td>
+                    <td>{{ item.sale.productid.product_hsn|default:"3004" }}</td>
+                    <td class="text-left">{{ item.sale.product_packing|truncatechars:8 }}</td>
+                    <td class="text-left">{{ item.sale.product_name|truncatechars:25 }}</td>
+                    <td>{{ item.sale.product_batch_no }}</td>
+                    <td>{{ item.sale.product_expiry }}</td>
+                    <td>{{ item.sale.sale_quantity|floatformat:0 }}</td>
+                    <td class="text-right">{{ item.sale.product_MRP|floatformat:2 }}</td>
+                    <td class="text-right">{{ item.sale.sale_rate|floatformat:2 }}</td>
+                    <td class="text-right">{{ item.sale.sale_discount|floatformat:2 }}</td>
+                    <td class="text-right">{{ item.sale.sale_sgst|floatformat:1 }}%</td>
+                    <td class="text-right">{{ item.sale.sale_cgst|floatformat:1 }}%</td>
+                    <td class="text-right">{{ item.total_amount|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Totals Section -->
+        <div class="totals-section">
+            <!-- GST Summary Table -->
+            <table class="gst-summary">
+                <thead>
+                    <tr>
+                        <th style="width: 15%;">GST Rate</th>
+                        <th style="width: 20%;">Taxable Amount</th>
+                        <th style="width: 15%;">CGST Amount</th>
+                        <th style="width: 15%;">SGST Amount</th>
+                        <th style="width: 20%;">Total Tax Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>5%</td>
+                        <td class="text-right">₹{{ gst_5.taxable_amount|floatformat:2|default:"0.00" }}</td>
+                        <td class="text-right">₹{{ gst_5.cgst_amount|floatformat:2|default:"0.00" }}</td>
+                        <td class="text-right">₹{{ gst_5.sgst_amount|floatformat:2|default:"0.00" }}</td>
+                        <td class="text-right">₹{{ gst_5.total_amount|floatformat:2|default:"0.00" }}</td>
+                    </tr>
+                    <tr>
+                        <td>12%</td>
+                        <td class="text-right">₹{{ gst_12.taxable_amount|floatformat:2|default:"0.00" }}</td>
+                        <td class="text-right">₹{{ gst_12.cgst_amount|floatformat:2|default:"0.00" }}</td>
+                        <td class="text-right">₹{{ gst_12.sgst_amount|floatformat:2|default:"0.00" }}</td>
+                        <td class="text-right">₹{{ gst_12.total_amount|floatformat:2|default:"0.00" }}</td>
+                    </tr>
+                    <tr>
+                        <td>18%</td>
+                        <td class="text-right">₹{{ gst_18.taxable_amount|floatformat:2|default:"0.00" }}</td>
+                        <td class="text-right">₹{{ gst_18.cgst_amount|floatformat:2|default:"0.00" }}</td>
+                        <td class="text-right">₹{{ gst_18.sgst_amount|floatformat:2|default:"0.00" }}</td>
+                        <td class="text-right">₹{{ gst_18.total_amount|floatformat:2|default:"0.00" }}</td>
+                    </tr>
+                </tbody>
+            </table>
+            <table class="totals-table">
+                <tr>
+                    <td class="text-left">Subtotal (Taxable):</td>
+                    <td class="text-right">₹{{ total_taxable|floatformat:2 }}</td>
+                </tr>
+                <tr>
+                    <td class="text-left">CGST Total:</td>
+                    <td class="text-right">₹{{ total_cgst|floatformat:2 }}</td>
+                </tr>
+                <tr>
+                    <td class="text-left">SGST Total:</td>
+                    <td class="text-right">₹{{ total_sgst|floatformat:2 }}</td>
+                </tr>
+                <tr>
+                    <td class="text-left">Discount:</td>
+                    <td class="text-right">₹{{ total_discount|floatformat:2|default:"0.00" }}</td>
+                </tr>
+                <tr class="grand-total">
+                    <td class="text-left">GRAND TOTAL:</td>
+                    <td class="text-right">₹{{ grand_total|floatformat:2 }}</td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Amount in Words -->
+        <div class="amount-words">
+            Amount in Words: {{ amount_in_words|upper }}
+        </div>
+
+        <!-- Footer Section -->
+        <div class="footer-section">
+            <div class="bank-details-box">
+                <div class="bank-details-text">
+                    <h4>BANK ACC DETAIL</h4>
+                    <p><strong>Bank Name:</strong> COSMOS BANK</p>
+                    <p><strong>Acc. Name:</strong> MEDICVISTA PHARMA PVT. LTD</p>
+                    <p><strong>Acc. No:</strong> 095100101083</p>
+                    <p><strong>IFSC Code:</strong> COSB0000095</p>
+                </div>
+                <div class="bank-qr-code">
+                    <img src="{% static 'medicscanner1.jpeg' %}" alt="QR Code">
+                </div>
+            </div>
+            <div class="signature-box">
+                {% if pharmacy %}
+                <p><strong>For {{ pharmacy.pharmaname|upper }}</strong></p>
+                {% endif %}
+                <p style="margin-top: 20px; border-top: 1px solid #000; padding-top: 2px;">Authorized Signatory</p>
+            </div>
+        </div>
+
+        <!-- Terms & Conditions -->
+        <div class="terms">
+            <strong>Terms & Conditions:</strong><br>
+            1) Goods once sold will not be taken back.  2) Interest @18% p.a. will be charged if payment is not made within due date.<br>
+            3) Subject to Mumbai Jurisdiction.   4) E. & O.E.
+        </div>
+    </div>
+</body>
+</html>

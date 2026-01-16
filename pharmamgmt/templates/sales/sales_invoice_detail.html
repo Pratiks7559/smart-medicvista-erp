@@ -12,7 +12,7 @@
         <i class="fas fa-edit me-2"></i>Edit Invoice
     </button>
 
-    <a href="{% url 'print_sales_receipt' invoice_id=invoice.sales_invoice_no %}" target="_blank" class="print-receipt-action-btn">
+    <a href="{% url 'print_gst_sales_invoice' invoice_id=invoice.sales_invoice_no %}" target="_blank" class="print-receipt-action-btn">
         <i class="fas fa-print me-2"></i>Print Receipt
     </a>
 
@@ -1697,11 +1697,11 @@ function closeDeleteSaleDialog() {
     deleteSaleId = null;
 }
 
-// Ctrl+P shortcut for print receipt
+// Ctrl+P shortcut for GST sales invoice
 document.addEventListener('keydown', function(e) {
     if (e.ctrlKey && e.key === 'p') {
         e.preventDefault();
-        window.open('{% url "print_sales_receipt" invoice.sales_invoice_no %}', '_blank');
+        window.open('{% url "print_gst_sales_invoice" invoice_id=invoice.sales_invoice_no %}', '_blank');
     }
 });
 </script>

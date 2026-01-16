@@ -241,9 +241,10 @@
 
             
             <div class="invoice-detail-btn-group">
-                <a href="{% url 'print_purchase_receipt' invoice_id=invoice.invoiceid %}" target="_blank" class="invoice-detail-btn invoice-detail-btn-primary">
-                    <i class="fas fa-print"></i> Print Receipt (Ctrl+P)
+                <a href="{% url 'print_gst_purchase_invoice' invoice_id=invoice.invoiceid %}" target="_blank" class="invoice-detail-btn invoice-detail-btn-primary">
+                    <i class="fas fa-print"></i> Print Receipt
                 </a>
+               
                 <a href="{% url 'invoice_list' %}" class="invoice-detail-btn invoice-detail-btn-secondary">
                     <i class="fas fa-arrow-left"></i> Back to Invoices
                 </a>
@@ -1118,7 +1119,7 @@ document.addEventListener('keydown', function(e) {
     // Ctrl+P for print receipt
     if (e.ctrlKey && e.key === 'p') {
         e.preventDefault();
-        const receiptUrl = `{% url 'print_purchase_receipt' invoice_id=invoice.invoiceid %}`;
+        const receiptUrl = `{% url 'print_gst_purchase_invoice' invoice_id=invoice.invoiceid %}`;
         window.open(receiptUrl, '_blank');
     }
 });
@@ -1603,7 +1604,7 @@ function closeDeletePaymentDialog() {
 // Print purchase receipt function
 function printPurchaseReceipt() {
     // Open the purchase receipt in a new window
-    const receiptUrl = `{% url 'print_purchase_receipt' invoice_id=invoice.invoiceid %}`;
+    const receiptUrl = `{% url 'print_gst_purchase_invoice' invoice_id=invoice.invoiceid %}`;
     window.open(receiptUrl, '_blank');
 }
 

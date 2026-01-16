@@ -1,5 +1,6 @@
 from django.urls import path, include
 from . import views
+from .gst_invoice_view import print_gst_purchase_invoice, print_gst_sales_invoice, print_gst_purchase_return_invoice, print_gst_sales_return_invoice
 from .challan_views import (
     supplier_challan_list, add_supplier_challan, view_supplier_challan, delete_supplier_challan,
     customer_challan_list, add_customer_challan, view_customer_challan, delete_customer_challan,
@@ -129,15 +130,19 @@ urlpatterns = [
     
     # Sales Receipt
     path('sales/<str:invoice_id>/print-receipt/', views.print_sales_receipt, name='print_sales_receipt'),
+    path('sales/<str:invoice_id>/gst-invoice/', print_gst_sales_invoice, name='print_gst_sales_invoice'),
     
     # Purchase Receipt
     path('purchases/<int:invoice_id>/print-receipt/', views.print_purchase_receipt, name='print_purchase_receipt'),
+    path('purchases/<int:invoice_id>/gst-invoice/', print_gst_purchase_invoice, name='print_gst_purchase_invoice'),
     
     # Purchase Return Receipt
     path('purchase-returns/<str:return_id>/print-receipt/', print_purchase_return_receipt, name='print_purchase_return_receipt'),
+    path('purchase-returns/<str:return_id>/gst-invoice/', print_gst_purchase_return_invoice, name='print_gst_purchase_return_invoice'),
     
     # Sales Return Receipt
     path('sales-returns/<str:return_id>/print-receipt/', print_sales_return_receipt, name='print_sales_return_receipt'),
+    path('sales-returns/<str:return_id>/gst-invoice/', print_gst_sales_return_invoice, name='print_gst_sales_return_invoice'),
     
     # Sales Invoices
     path('sales/', views.sales_invoice_list, name='sales_invoice_list'),

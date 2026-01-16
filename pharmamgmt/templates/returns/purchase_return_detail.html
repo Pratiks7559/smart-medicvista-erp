@@ -180,10 +180,10 @@
                     </div>
                     <div class="col-md-4">
                         <div class="summary-actions">
-                            <a href="{% url 'print_purchase_return_receipt' return_id=return_invoice.returninvoiceid %}" target="_blank" class="btn btn-primary btn-block mb-2">
+                            <a href="{% url 'print_gst_purchase_return_invoice' return_id=return_invoice.returninvoiceid %}" target="_blank" class="btn btn-primary btn-block mb-2">
                                 <i class="fas fa-print"></i> Print Return
                             </a>
-                            <a href="{% url 'print_purchase_return_receipt' return_id=return_invoice.returninvoiceid %}" target="_blank" class="btn btn-info btn-block mb-2">
+                            <a href="{% url 'print_gst_purchase_return_invoice' return_id=return_invoice.returninvoiceid %}" target="_blank" class="btn btn-info btn-block mb-2">
                                 <i class="fas fa-download"></i> Download PDF
                             </a>
                             {% if request.user.user_type == 'admin' %}
@@ -1724,7 +1724,7 @@ document.addEventListener('keydown', function(e) {
     // Ctrl+P for print
     if (e.ctrlKey && e.key === 'p') {
         e.preventDefault();
-        window.open('{% url "print_purchase_return_receipt" return_id=return_invoice.returninvoiceid %}', '_blank');
+        window.open('{% url "print_gst_purchase_return_invoice" return_id=return_invoice.returninvoiceid %}', '_blank');
     }
 });
 </script>
