@@ -74,14 +74,17 @@
         <div class="user-modal-content">
             <div class="user-modal-header">
                 <h5 id="deleteModalLabel" class="user-modal-title">Confirm Delete</h5>
-                <button type="button" class="user-modal-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="user-modal-close" onclick="closeModal()" aria-label="Close">&times;</button>
             </div>
             <div class="user-modal-body">
                 Are you sure you want to delete user <span id="userName" class="user-modal-username"></span>?
             </div>
             <div class="user-modal-footer">
-                <button type="button" class="user-modal-cancel" data-bs-dismiss="modal">Cancel</button>
-                <a href="#" id="confirmDeleteBtn" class="user-modal-confirm">Delete</a>
+                <button type="button" class="user-modal-cancel" onclick="closeModal()">Cancel</button>
+                <form id="deleteForm" method="post" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="user-modal-confirm">Delete</button>
+                </form>
             </div>
         </div>
     </div>
@@ -92,10 +95,20 @@
 <script>
     function confirmDelete(username, userId) {
         document.getElementById('userName').textContent = username;
-        document.getElementById('confirmDeleteBtn').href = '/users/' + userId + '/delete/';
-        
-        var modal = new bootstrap.Modal(document.getElementById('deleteModal'));
-        modal.show();
+        document.getElementById('deleteForm').action = '/users/' + userId + '/delete/';
+        document.getElementById('deleteModal').style.display = 'flex';
+    }
+    
+    function closeModal() {
+        document.getElementById('deleteModal').style.display = 'none';
+    }
+    
+    // Close modal on outside click
+    window.onclick = function(event) {
+        const modal = document.getElementById('deleteModal');
+        if (event.target == modal) {
+            closeModal();
+        }
     }
 </script>
 {% endblock %}

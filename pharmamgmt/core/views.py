@@ -107,9 +107,16 @@ def register_user(request):
     if request.method == 'POST':
         form = UserRegistrationForm(request.POST, request.FILES)
         if form.is_valid():
-            user = form.save()
+            user = form.save(commit=False)
+            if 'path' in request.FILES:
+                user.path = request.FILES['path']
+            user.save()
             messages.success(request, f"Account created for {user.username}!")
             return redirect('user_list')
+        else:
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f"{field}: {error}")
     else:
         form = UserRegistrationForm()
     
@@ -144,12 +151,19 @@ def update_user(request, pk):
     if request.method == 'POST':
         form = UserUpdateForm(request.POST, request.FILES, instance=user)
         if form.is_valid():
-            form.save()
+            user = form.save(commit=False)
+            if 'path' in request.FILES:
+                user.path = request.FILES['path']
+            user.save()
             messages.success(request, f"Account updated for {user.username}!")
             if request.user.user_type == 'admin':
                 return redirect('user_list')
             else:
                 return redirect('profile')
+        else:
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f"{field}: {error}")
     else:
         form = UserUpdateForm(instance=user)
     

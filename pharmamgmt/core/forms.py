@@ -57,11 +57,11 @@ class UserUpdateForm(forms.ModelForm):
         ('customer', 'Customer'),
     ]
     
-    first_name = forms.CharField(widget=forms.TextInput(attrs={'class': 'form-control'}))
-    last_name = forms.CharField(widget=forms.TextInput(attrs={'class': 'form-control'}))
-    email = forms.EmailField(widget=forms.EmailInput(attrs={'class': 'form-control'}))
+    first_name = forms.CharField(required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    last_name = forms.CharField(required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    email = forms.EmailField(required=False, widget=forms.EmailInput(attrs={'class': 'form-control'}))
     user_type = forms.ChoiceField(choices=USER_TYPE_CHOICES, widget=forms.Select(attrs={'class': 'form-control'}))
-    user_contact = forms.CharField(widget=forms.TextInput(attrs={'class': 'form-control'}))
+    user_contact = forms.CharField(required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
     path = forms.ImageField(required=False, widget=forms.FileInput(attrs={'class': 'form-control'}))
     
     class Meta:

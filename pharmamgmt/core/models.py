@@ -10,19 +10,16 @@ from django.db.models import Q, F
 
 # Create your models here.
 class Web_User(AbstractUser):
-    # firstname=models.CharField(max_length=150, null=False, blank=False )
-    # lastname=models.CharField(max_length=150, null=False, blank=False)
     username=models.CharField(max_length=150, unique=True, null=False, blank=False)
     password=models.CharField(max_length=100)
     user_type=models.CharField(max_length=50)
     user_contact=models.CharField(max_length=100)
-    # path = models.ImageField(upload_to='images/')
-    path = models.ImageField(upload_to='images/',default='images/default.png')
-    def __str__(self):  
-        return self.username
+    path = models.ImageField(upload_to='images/', blank=True, null=True)
     profile_picture = models.ImageField(upload_to='images/', blank=True, null=True)    
     user_isactive=models.DecimalField(max_digits=1,decimal_places=0, default=0)
-    # add additional fields in here
+    
+    def __str__(self):  
+        return self.username
   
     
 class Pharmacy_Details(models.Model):
